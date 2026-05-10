@@ -1,0 +1,8 @@
+server:
+  port: 7267
+  servlet:
+    context-path: /app-api
+
+spring:
+  application:
+    name: eco-oil-app-backend

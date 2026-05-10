@@ -1,0 +1,12 @@
+server:
+  port: 7266
+  servlet:
+    context-path: /prod-api
+
+spring:
+  application:
+    name: eco-oil-admin-backend
+
+app:
+  cors:
+    allowed-origins: "*"
