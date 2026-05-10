@@ -1,6 +1,8 @@
 **/target/
 **/node_modules/
 **/dist/
+**/dist-admin/
+**/dist-app/
 **/.npm-cache/
 .idea/
 .vscode/
