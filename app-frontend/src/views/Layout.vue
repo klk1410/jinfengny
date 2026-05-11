@@ -15,9 +15,20 @@ const canOpenBusiness = computed(() => !!portal.value?.hasBusinessAccess);
 const portalSections = computed(() => portal.value?.sections || []);
 const roleLabel = computed(() => portal.value?.role || "—");
 const isHome = computed(() => route.name === "home");
-const headerTitle = computed(() =>
-  typeof route.meta.headerTitle === "string" && route.meta.headerTitle ? route.meta.headerTitle : "环保油管理"
-);
+const headerTitle = computed(() => {
+  const q = route.query.t;
+  if (q !== undefined && q !== null && q !== "") {
+    const v = Array.isArray(q) ? q[0] : q;
+    if (typeof v === "string" && v.trim()) {
+      return v.trim();
+    }
+  }
+  const m = route.meta.headerTitle;
+  if (typeof m === "string" && m.trim()) {
+    return m.trim();
+  }
+  return "环保油管理";
+});
 
 async function refreshPortal() {
   loadError.value = "";

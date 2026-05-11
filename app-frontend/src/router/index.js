@@ -9,14 +9,15 @@ export const router = createRouter({
       component: Layout,
       children: [
         { path: "", name: "home", component: () => import("../views/Home.vue") },
-        { path: "orders", name: "orders", component: () => import("../views/OrdersView.vue") },
-        { path: "merchants", name: "merchants", component: () => import("../views/MerchantsView.vue") },
-        { path: "agents", name: "agents", component: () => import("../views/AgentsView.vue") },
-        { path: "salesmen", name: "salesmen", component: () => import("../views/SalesmenView.vue") },
-        { path: "devices", name: "devices", component: () => import("../views/DevicesView.vue") },
-        { path: "work-orders", name: "work-orders", component: () => import("../views/WorkOrdersView.vue") },
-        { path: "stock", name: "stock", component: () => import("../views/StockView.vue") },
-        { path: "ledger", name: "ledger", component: () => import("../views/LedgerView.vue") },
+        { path: "blank", name: "blank", meta: { headerTitle: "功能建设中" }, component: () => import("../views/PlaceholderBlank.vue") },
+        { path: "orders", name: "orders", meta: { headerTitle: "我的订单" }, component: () => import("../views/OrdersView.vue") },
+        { path: "merchants", name: "merchants", meta: { headerTitle: "商家" }, component: () => import("../views/MerchantsView.vue") },
+        { path: "agents", name: "agents", meta: { headerTitle: "代理" }, component: () => import("../views/AgentsView.vue") },
+        { path: "salesmen", name: "salesmen", meta: { headerTitle: "业务员" }, component: () => import("../views/SalesmenView.vue") },
+        { path: "devices", name: "devices", meta: { headerTitle: "设备" }, component: () => import("../views/DevicesView.vue") },
+        { path: "work-orders", name: "work-orders", meta: { headerTitle: "工单" }, component: () => import("../views/WorkOrdersView.vue") },
+        { path: "stock", name: "stock", meta: { headerTitle: "仓储库存" }, component: () => import("../views/StockView.vue") },
+        { path: "ledger", name: "ledger", meta: { headerTitle: "账目流水" }, component: () => import("../views/LedgerView.vue") },
         {
           path: "promo/coops",
           name: "promo-coops",
@@ -42,10 +43,10 @@ export const router = createRouter({
           component: () => import("../views/promo/PromoStoreNewView.vue")
         },
         {
-          path: "promo/devices",
-          name: "promo-devices",
-          meta: { headerTitle: "推广设备" },
-          component: () => import("../views/promo/PromoDevicesView.vue")
+          path: "promo/device-new",
+          name: "promo-device-new",
+          meta: { headerTitle: "新增设备" },
+          component: () => import("../views/promo/PromoDeviceNewView.vue")
         },
         {
           path: "promo/withdraws",
@@ -58,6 +59,24 @@ export const router = createRouter({
           name: "promo-prepaids",
           meta: { headerTitle: "预付款管理" },
           component: () => import("../views/promo/PromoPrepaidsView.vue")
+        },
+        {
+          path: "after/device-mgmt",
+          name: "after-device-mgmt",
+          meta: { headerTitle: "设备管理" },
+          component: () => import("../views/after/AfterDeviceMgmtView.vue")
+        },
+        {
+          path: "after/device-log",
+          name: "after-device-log",
+          meta: { headerTitle: "设备日志" },
+          component: () => import("../views/after/AfterDeviceLogView.vue")
+        },
+        {
+          path: ":pathMatch(.*)*",
+          name: "fallback-blank",
+          meta: { headerTitle: "功能建设中" },
+          component: () => import("../views/PlaceholderBlank.vue")
         }
       ]
     }

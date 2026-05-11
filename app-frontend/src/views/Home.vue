@@ -7,6 +7,19 @@ const shell = inject("appShell");
 
 function onGridTap(entry) {
   const path = entry.routePath || "";
+  if (path === "#/blank" || path.startsWith("#/blank?")) {
+    const qs = path.includes("?") ? path.slice(path.indexOf("?")) : "";
+    const u = new URLSearchParams(qs || "");
+    const q = {};
+    u.forEach((val, key) => {
+      q[key] = val;
+    });
+    if (entry.label && !q.t) {
+      q.t = entry.label;
+    }
+    router.push({ path: "/blank", query: q });
+    return;
+  }
   if (path.startsWith("#/")) {
     router.push(path.slice(1));
     return;

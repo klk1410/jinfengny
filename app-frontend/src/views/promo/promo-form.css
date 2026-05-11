@@ -6,6 +6,11 @@
   box-sizing: border-box;
 }
 
+.pf-muted {
+  color: #64748b;
+  font-size: 13px;
+}
+
 .pf-err {
   margin: 0 0 10px;
   padding: 8px 10px;

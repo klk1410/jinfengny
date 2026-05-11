@@ -1,7 +1,7 @@
 <script setup>
 import { inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../../api.js";
-import "./promo-form.css";
+import "../promo/promo-form.css";
 
 const shell = inject("appShell");
 const rows = ref([]);
@@ -25,6 +25,7 @@ onMounted(load);
 <template>
   <div class="pf-page">
     <p v-if="err" class="pf-err">{{ err }}</p>
+    <p class="pf-muted" style="margin: 0 0 12px">监测在库设备状态（与业务设备表同步）。</p>
 
     <div class="pf-toolbar">
       <button type="button" class="pf-tool pf-tool--ghost" @click="load">刷新</button>

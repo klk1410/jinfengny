@@ -4,15 +4,21 @@
 .USAGE
   Copy deploy\deploy.env.example to deploy\deploy.env, then from repo root:
     .\deploy\quick-deploy.ps1
-  Options: -SkipCommit -CommitMsg "msg" -SkipFrontend -SkipBackend -GitPush
+  Options: -SkipCommit -CommitMsg "msg" -SkipFrontend -SkipBackend -GitPush -SkipRemoteAfter
 Requires: JDK+Maven, Node+npm, OpenSSH (ssh/scp).
+
+  远程 JAR 重启（上传完成后）任选其一配置在 deploy.env：
+  - REMOTE_CMD=...                    任意 shell，如 systemctl / 脚本路径
+  - REMOTE_RESTART_SYSTEMD_SERVICES=  逗号分隔服务名，自动拼成 restart（可选 REMOTE_RESTART_USE_SUDO=1）
+  跳过远程钩子：加参数 -SkipRemoteAfter
 #>
 param(
   [switch]$SkipCommit,
   [string]$CommitMsg = "",
   [switch]$SkipFrontend,
   [switch]$SkipBackend,
-  [switch]$GitPush
+  [switch]$GitPush,
+  [switch]$SkipRemoteAfter
 )
 
 $ErrorActionPreference = "Stop"
@@ -54,6 +60,7 @@ $remoteJarApp = $env:REMOTE_JAR_APP
 $remoteStaticAdmin = $env:REMOTE_STATIC_ADMIN
 $remoteStaticApp = $env:REMOTE_STATIC_APP
 $remoteCmd = $env:REMOTE_CMD
+$remoteRestartServices = $env:REMOTE_RESTART_SYSTEMD_SERVICES
 
 if (-not $SkipBackend) {
   if (-not $remoteJarAdmin -or -not $remoteJarApp) { throw 'REMOTE_JAR_ADMIN / REMOTE_JAR_APP not set' }
@@ -149,11 +156,23 @@ if (-not $SkipFrontend) {
   Invoke-Scp ($base + @('-r', "${appDist}/.", "${DeployHost}:$remoteStaticApp/"))
 }
 
-if ($remoteCmd) {
-  Write-Host '>>> ssh remote command' -ForegroundColor Cyan
+$effectiveRemoteCmd = $remoteCmd
+if (-not $effectiveRemoteCmd -and $remoteRestartServices) {
+  $svcs = ($remoteRestartServices -split ',') | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
+  if ($svcs.Count -gt 0) {
+    $useSudo = ($env:REMOTE_RESTART_USE_SUDO -eq '1' -or $env:REMOTE_RESTART_USE_SUDO -eq 'true')
+    $prefix = if ($useSudo) { 'sudo ' } else { '' }
+    $effectiveRemoteCmd = ($svcs | ForEach-Object { "${prefix}systemctl restart $_" }) -join ' && '
+  }
+}
+
+if ($SkipRemoteAfter) {
+  Write-Host '>>> skip remote restart/hook (-SkipRemoteAfter)' -ForegroundColor Yellow
+} elseif ($effectiveRemoteCmd) {
+  Write-Host '>>> ssh remote command (restart / hook)' -ForegroundColor Cyan
   $sshArgs = @('-p', $sshPort, '-o', 'StrictHostKeyChecking=accept-new')
   if ($identity) { $sshArgs += @('-i', $identity) }
-  $sshArgs += @($DeployHost, $remoteCmd)
+  $sshArgs += @($DeployHost, $effectiveRemoteCmd)
   ssh @sshArgs
   if ($LASTEXITCODE -ne 0) { throw 'remote command failed' }
 }

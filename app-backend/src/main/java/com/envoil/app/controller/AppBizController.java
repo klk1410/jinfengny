@@ -1,8 +1,10 @@
 package com.envoil.app.controller;
 
 import com.envoil.app.common.ApiResponse;
+import com.envoil.app.model.DeviceEventCreateRequest;
 import com.envoil.app.model.MerchantCreateRequest;
 import com.envoil.app.service.AppBizDataService;
+import com.envoil.app.service.AppDeviceEventService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,9 +20,11 @@ import java.math.BigDecimal;
 public class AppBizController {
 
     private final AppBizDataService bizDataService;
+    private final AppDeviceEventService deviceEventService;
 
-    public AppBizController(AppBizDataService bizDataService) {
+    public AppBizController(AppBizDataService bizDataService, AppDeviceEventService deviceEventService) {
         this.bizDataService = bizDataService;
+        this.deviceEventService = deviceEventService;
     }
 
     @GetMapping("/merchants")
@@ -46,6 +50,17 @@ public class AppBizController {
     @GetMapping("/devices")
     public ApiResponse<?> devices(@RequestParam String openid) {
         return ApiResponse.ok(bizDataService.listDevices(openid));
+    }
+
+    @GetMapping("/device-events")
+    public ApiResponse<?> deviceEvents(@RequestParam String openid) {
+        return ApiResponse.ok(deviceEventService.listEvents(openid));
+    }
+
+    @PostMapping("/device-events")
+    public ApiResponse<?> deviceEventsCreate(@Validated @RequestBody DeviceEventCreateRequest req) {
+        deviceEventService.createEvent(req);
+        return ApiResponse.ok(null);
     }
 
     @GetMapping("/stock/summary")
