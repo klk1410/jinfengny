@@ -11,6 +11,7 @@ export const router = createRouter({
         { path: "", name: "home", component: () => import("../views/Home.vue") },
         { path: "blank", name: "blank", meta: { headerTitle: "功能建设中" }, component: () => import("../views/PlaceholderBlank.vue") },
         { path: "orders", name: "orders", meta: { headerTitle: "我的订单" }, component: () => import("../views/OrdersView.vue") },
+        { path: "order/stats", name: "order-stats", meta: { headerTitle: "订单统计" }, component: () => import("../views/OrderStatsView.vue") },
         { path: "merchants", name: "merchants", meta: { headerTitle: "商家" }, component: () => import("../views/MerchantsView.vue") },
         { path: "agents", name: "agents", meta: { headerTitle: "代理" }, component: () => import("../views/AgentsView.vue") },
         { path: "salesmen", name: "salesmen", meta: { headerTitle: "业务员" }, component: () => import("../views/SalesmenView.vue") },

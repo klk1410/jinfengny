@@ -1,0 +1,115 @@
+<script setup>
+import { inject, onMounted, ref, watch } from "vue";
+import { requestJson } from "../api.js";
+
+const shell = inject("appShell");
+const stats = ref(null);
+const err = ref("");
+const busy = ref(false);
+
+async function load() {
+  err.value = "";
+  busy.value = true;
+  try {
+    const oid = encodeURIComponent(shell.loginOpenid);
+    stats.value = await requestJson(`/app-api/order/stats?openid=${oid}`);
+  } catch (e) {
+    err.value = e.message || String(e);
+    stats.value = null;
+  } finally {
+    busy.value = false;
+  }
+}
+
+watch(() => shell.loginOpenid, load);
+onMounted(load);
+</script>
+
+<template>
+  <div class="page">
+    <p v-if="err" class="err">{{ err }}</p>
+    <p v-if="busy" class="muted">加载中…</p>
+
+    <div class="card">
+      <h3 class="sub">订单统计</h3>
+      <div v-if="stats" class="stats-top">
+        <div class="kpi">角色：{{ stats.roleName }}</div>
+        <div class="kpi">订单数：{{ stats.orderCount }}</div>
+        <div class="kpi">金额：¥{{ stats.amountTotal }}</div>
+      </div>
+      <div v-if="stats?.byStatus?.length" class="stats-block">
+        <div class="stats-title">按状态</div>
+        <div v-for="(s, i) in stats.byStatus" :key="`st-${i}`" class="stats-row">
+          <span>{{ s.status }}</span>
+          <span>{{ s.orderCount }} 单 · ¥{{ s.amountTotal }}</span>
+        </div>
+      </div>
+      <div v-if="stats?.byMerchant?.length" class="stats-block">
+        <div class="stats-title">按商户</div>
+        <div v-for="(m, i) in stats.byMerchant" :key="`m-${i}`" class="stats-row">
+          <span>{{ m.merchantName }}</span>
+          <span>{{ m.orderCount }} 单 · ¥{{ m.amountTotal }}</span>
+        </div>
+      </div>
+      <div v-if="stats?.byAgent?.length" class="stats-block">
+        <div class="stats-title">按代理</div>
+        <div v-for="(a, i) in stats.byAgent" :key="`a-${i}`" class="stats-row">
+          <span>代理 #{{ a.agentId }}</span>
+          <span>{{ a.orderCount }} 单 · ¥{{ a.amountTotal }}</span>
+        </div>
+      </div>
+      <div v-if="!stats" class="muted">暂无统计</div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.err {
+  color: #b91c1c;
+  font-size: 13px;
+}
+.muted {
+  color: #64748b;
+  font-size: 12px;
+}
+.card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+.sub {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+.stats-top {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.kpi {
+  background: #f5f8ff;
+  border: 1px solid #dbe7ff;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 12px;
+  color: #1e3a8a;
+}
+.stats-block {
+  margin-top: 10px;
+}
+.stats-title {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-top: 1px dashed #eef1f6;
+  font-size: 12px;
+}
+</style>
+
