@@ -24,7 +24,7 @@ public class AdminJwtAuthInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        if ("/admin/auth/login".equals(request.getServletPath())) {
+        if (isLoginPost(request)) {
             return true;
         }
 
@@ -42,5 +42,18 @@ public class AdminJwtAuthInterceptor implements HandlerInterceptor {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return false;
         }
+    }
+
+    /** 兼容 context-path、反向代理等场景下 servletPath 与完整 URI 不一致 */
+    private static boolean isLoginPost(HttpServletRequest request) {
+        if (!"POST".equalsIgnoreCase(request.getMethod())) {
+            return false;
+        }
+        String servletPath = request.getServletPath();
+        if ("/admin/auth/login".equals(servletPath)) {
+            return true;
+        }
+        String uri = request.getRequestURI();
+        return uri != null && uri.endsWith("/admin/auth/login");
     }
 }

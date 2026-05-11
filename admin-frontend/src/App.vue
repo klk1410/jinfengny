@@ -7,6 +7,7 @@ const token = ref(localStorage.getItem(TOKEN_KEY) || "");
 const tab = ref("portal");
 const loginForm = ref({ username: "admin", password: "admin123" });
 const err = ref("");
+const loginLoading = ref(false);
 
 const tree = ref([]);
 const roles = ref([]);
@@ -60,21 +61,42 @@ async function requestJson(url, options = {}) {
 
 async function doLogin() {
   err.value = "";
+  loginLoading.value = true;
   try {
     const res = await fetch("/prod-api/admin/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(loginForm.value)
     });
-    const json = await res.json();
+    const raw = await res.text();
+    let json;
+    try {
+      json = raw ? JSON.parse(raw) : {};
+    } catch {
+      throw new Error(
+        res.ok
+          ? "服务器返回非 JSON，请检查 /prod-api 是否反代到 admin-backend（7266）"
+          : `HTTP ${res.status}：${raw.slice(0, 120)}`
+      );
+    }
     if (json.code !== 200) {
       throw new Error(json.message || "登录失败");
     }
-    token.value = json.data.token;
+    const t = json.data && json.data.token;
+    if (!t) {
+      throw new Error("登录成功但未返回 token，请检查后端接口");
+    }
+    token.value = t;
     localStorage.setItem(TOKEN_KEY, token.value);
-    await refreshAll();
+    try {
+      await refreshAll();
+    } catch (e2) {
+      err.value = `已登录，但加载配置失败：${e2.message || e2}`;
+    }
   } catch (e) {
-    err.value = e.message;
+    err.value = e && e.message ? e.message : String(e);
+  } finally {
+    loginLoading.value = false;
   }
 }
 
@@ -203,7 +225,9 @@ onMounted(() => {
         <input v-model="loginForm.password" type="password" />
       </div>
       <p v-if="err" class="err">{{ err }}</p>
-      <button class="btn" @click="doLogin">登录</button>
+      <button type="button" class="btn" :disabled="loginLoading" @click.prevent="doLogin">
+        {{ loginLoading ? "登录中…" : "登录" }}
+      </button>
     </div>
 
     <template v-else>
