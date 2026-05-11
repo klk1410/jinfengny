@@ -308,7 +308,6 @@ onMounted(() => {
           <label v-for="p in permOptions" :key="p.permCode" class="perm-item">
             <input type="checkbox" v-model="rolePermSelection" :value="p.permCode" />
             <span class="perm-cn">{{ p.groupTitle }} · {{ p.label }}</span>
-            <span class="mono perm-code">{{ p.permCode }}</span>
           </label>
         </div>
       </section>
@@ -525,12 +524,6 @@ td {
   font-size: 13px;
   color: #222;
   line-height: 1.35;
-}
-
-.perm-code {
-  color: #64748b;
-  font-size: 11px;
-  white-space: nowrap;
 }
 
 .text-btn {

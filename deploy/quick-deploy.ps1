@@ -175,6 +175,8 @@ if ($SkipRemoteAfter) {
   $sshArgs += @($DeployHost, $effectiveRemoteCmd)
   ssh @sshArgs
   if ($LASTEXITCODE -ne 0) { throw 'remote command failed' }
+} else {
+  Write-Host '>>> no remote restart configured (set REMOTE_CMD or REMOTE_RESTART_SYSTEMD_SERVICES)' -ForegroundColor Yellow
 }
 
 if ($GitPush) {
