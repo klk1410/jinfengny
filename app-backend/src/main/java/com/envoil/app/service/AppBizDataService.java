@@ -384,6 +384,83 @@ public class AppBizDataService {
                 aid);
     }
 
+    /** 账户信息（基础信息卡 + 组织信息卡） */
+    public Map<String, Object> accountProfile(String openid) {
+        OpenidBizScope s = scopeService.resolve(openid);
+        char r = s.getUserRole();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("openid", openid);
+        out.put("roleCode", String.valueOf(r));
+        out.put("roleName", roleName(r));
+        // env_mini_subject 首版无 create_time，这里预留字段，后续有库字段可补
+        out.put("bindTime", "");
+
+        Map<String, Object> org = new LinkedHashMap<>();
+        if (r == '1') {
+            org.put("platformName", "环保油平台");
+            org.put("adminName", "平台管理员");
+        } else if (r == '2') {
+            List<Map<String, Object>> rows = jdbcTemplate.query(
+                    "SELECT agent_name, contact_name, contact_phone, province, city, district "
+                            + "FROM biz_env_agent WHERE agent_id = ? AND del_flag = '0'",
+                    (rs, i) -> {
+                        Map<String, Object> m = new LinkedHashMap<>();
+                        m.put("agentName", rs.getString("agent_name"));
+                        m.put("contactName", rs.getString("contact_name"));
+                        m.put("contactPhone", rs.getString("contact_phone"));
+                        m.put("region", String.join("/",
+                                nullSafe(rs.getString("province")),
+                                nullSafe(rs.getString("city")),
+                                nullSafe(rs.getString("district"))));
+                        return m;
+                    },
+                    s.getAgentId());
+            if (!rows.isEmpty()) {
+                org.putAll(rows.get(0));
+            }
+        } else if (r == '3') {
+            List<Map<String, Object>> rows = jdbcTemplate.query(
+                    "SELECT sm.salesman_name, sm.phone, a.agent_name "
+                            + "FROM biz_env_salesman sm "
+                            + "LEFT JOIN biz_env_agent a ON a.agent_id = sm.agent_id AND a.del_flag = '0' "
+                            + "WHERE sm.salesman_id = ? AND sm.del_flag = '0'",
+                    (rs, i) -> {
+                        Map<String, Object> m = new LinkedHashMap<>();
+                        m.put("salesmanName", rs.getString("salesman_name"));
+                        m.put("phone", rs.getString("phone"));
+                        m.put("agentName", rs.getString("agent_name"));
+                        return m;
+                    },
+                    s.getSalesmanId());
+            if (!rows.isEmpty()) {
+                org.putAll(rows.get(0));
+            }
+        } else if (r == '4') {
+            List<Map<String, Object>> rows = jdbcTemplate.query(
+                    "SELECT m.merchant_name, m.contact_name, m.contact_phone, "
+                            + "a.agent_name, sm.salesman_name "
+                            + "FROM biz_env_merchant m "
+                            + "LEFT JOIN biz_env_agent a ON a.agent_id = m.agent_id AND a.del_flag = '0' "
+                            + "LEFT JOIN biz_env_salesman sm ON sm.salesman_id = m.salesman_id AND sm.del_flag = '0' "
+                            + "WHERE m.merchant_id = ? AND m.del_flag = '0'",
+                    (rs, i) -> {
+                        Map<String, Object> m = new LinkedHashMap<>();
+                        m.put("merchantName", rs.getString("merchant_name"));
+                        m.put("contactName", rs.getString("contact_name"));
+                        m.put("contactPhone", rs.getString("contact_phone"));
+                        m.put("agentName", rs.getString("agent_name"));
+                        m.put("salesmanName", rs.getString("salesman_name"));
+                        return m;
+                    },
+                    s.getMerchantId());
+            if (!rows.isEmpty()) {
+                org.putAll(rows.get(0));
+            }
+        }
+        out.put("orgInfo", org);
+        return out;
+    }
+
     public void inboundStock(String openid, BigDecimal qty, Long agentIdForMain, String remark) {
         OpenidBizScope s = scopeService.resolve(openid);
         char r = s.getUserRole();
@@ -478,6 +555,18 @@ public class AppBizDataService {
         synchronized (TS) {
             return TS.format(ts);
         }
+    }
+
+    private static String roleName(char code) {
+        if (code == '1') return "主端";
+        if (code == '2') return "代理";
+        if (code == '3') return "业务员";
+        if (code == '4') return "商家";
+        return String.valueOf(code);
+    }
+
+    private static String nullSafe(String v) {
+        return v == null ? "" : v;
     }
 
     private void appendMerchantScope(StringBuilder sql, List<Object> args, OpenidBizScope s) {

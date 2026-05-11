@@ -87,4 +87,9 @@ public class AppBizController {
     public ApiResponse<?> accountLedger(@RequestParam String openid, @RequestParam(required = false) Long agentId) {
         return ApiResponse.ok(bizDataService.listAccountLedger(openid, agentId));
     }
+
+    @GetMapping("/account/profile")
+    public ApiResponse<?> accountProfile(@RequestParam String openid) {
+        return ApiResponse.ok(bizDataService.accountProfile(openid));
+    }
 }

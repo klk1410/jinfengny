@@ -19,6 +19,12 @@ export const router = createRouter({
         { path: "stock", name: "stock", meta: { headerTitle: "仓储库存" }, component: () => import("../views/StockView.vue") },
         { path: "ledger", name: "ledger", meta: { headerTitle: "账目流水" }, component: () => import("../views/LedgerView.vue") },
         {
+          path: "account/profile",
+          name: "account-profile",
+          meta: { headerTitle: "账户信息" },
+          component: () => import("../views/AccountProfileView.vue")
+        },
+        {
           path: "promo/coops",
           name: "promo-coops",
           meta: { headerTitle: "合作管理" },
