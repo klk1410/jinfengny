@@ -11,6 +11,7 @@
      .\deploy\quick-deploy.ps1 -CommitMsg "fix: xxx"
      .\deploy\quick-deploy.ps1 -SkipFrontend # 仅 jar
      .\deploy\quick-deploy.ps1 -SkipBackend  # 仅静态
+     .\deploy\quick-deploy.ps1 -GitPush       # 结束前推送到 origin（需网络）
 
 Requires: JDK+Maven、Node+npm；本机已安装 OpenSSH 客户端（scp/ssh）。
 #>
@@ -129,6 +130,12 @@ if (-not $SkipBackend) {
   $appJar = Join-Path $RepoRoot "app-backend\target\app-backend.jar"
   if (-not (Test-Path $adminJar)) { throw "找不到 $adminJar" }
   if (-not (Test-Path $appJar)) { throw "找不到 $appJar" }
+  Write-Host ">>> 确保远端 JAR 父目录存在" -ForegroundColor Cyan
+  $dirAdmin = Split-Path $remoteJarAdmin -Parent
+  $dirApp = Split-Path $remoteJarApp -Parent
+  $sshPrep = @("-p", $sshPort, "-o", "StrictHostKeyChecking=accept-new")
+  if ($identity) { $sshPrep += @("-i", $identity) }
+  ssh @sshPrep $hostSpec "mkdir -p '$dirAdmin' '$dirApp'"
   Write-Host ">>> 上传 JAR" -ForegroundColor Cyan
   Invoke-Scp ($base + @($adminJar, "${hostSpec}:$remoteJarAdmin"))
   Invoke-Scp ($base + @($appJar, "${hostSpec}:$remoteJarApp"))
