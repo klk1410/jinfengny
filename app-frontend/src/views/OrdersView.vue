@@ -1,8 +1,9 @@
 <script setup>
-import { inject, onMounted, ref, watch } from "vue";
+import { computed, inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../api.js";
 
 const shell = inject("appShell");
+const roleCode = computed(() => shell.portal?.roleCode ?? "");
 const rows = ref([]);
 const err = ref("");
 const busy = ref(false);
@@ -26,6 +27,22 @@ async function load() {
     rows.value = [];
   } finally {
     busy.value = false;
+  }
+}
+
+async function onConfirm(orderNo) {
+  if (!window.confirm(`确认订单 ${orderNo}？将生成待分配工单。`)) {
+    return;
+  }
+  err.value = "";
+  try {
+    const oid = shell.loginOpenid;
+    await requestJson(`/app-api/order/confirm/${encodeURIComponent(orderNo)}?openid=${encodeURIComponent(oid)}`, {
+      method: "POST"
+    });
+    await load();
+  } catch (e) {
+    err.value = e.message || String(e);
   }
 }
 
@@ -71,6 +88,19 @@ async function onCreate() {
   }
 }
 
+function canCancelRow(o) {
+  if (o.statusCode === "3" || o.statusCode === "4") {
+    return false;
+  }
+  if (roleCode.value === "merchant") {
+    return o.statusCode === "0" || o.statusCode === "1";
+  }
+  if (roleCode.value === "main" || roleCode.value === "agent") {
+    return o.statusCode === "0" || o.statusCode === "1" || o.statusCode === "2";
+  }
+  return false;
+}
+
 watch(() => shell.loginOpenid, () => {
   load();
 });
@@ -86,7 +116,7 @@ onMounted(() => {
     <p v-if="err" class="err">{{ err }}</p>
     <p v-if="busy" class="muted">加载中…</p>
 
-    <div class="card">
+    <div v-if="roleCode === 'merchant'" class="card">
       <h3 class="sub">新建订单</h3>
       <div class="row">
         <label>商家 ID</label>
@@ -126,18 +156,22 @@ onMounted(() => {
           <span class="st">{{ o.status }}</span>
         </div>
         <div class="item-mid">{{ o.merchantName }} · {{ o.orderType }} · {{ o.payType }}</div>
+        <div v-if="o.workOrderNo" class="item-mid muted">工单 {{ o.workOrderNo }}</div>
         <div class="item-bot">
           <span>¥{{ o.amountPayable }}</span>
           <span class="muted">{{ o.createTime }}</span>
         </div>
-        <button
-          v-if="o.status !== '订单取消' && o.status !== '已完成'"
-          type="button"
-          class="link"
-          @click="onCancel(o.orderNo)"
-        >
-          取消
-        </button>
+        <div class="item-actions">
+          <button
+            v-if="(roleCode === 'main' || roleCode === 'agent') && o.statusCode === '0'"
+            type="button"
+            class="link"
+            @click="onConfirm(o.orderNo)"
+          >
+            确认
+          </button>
+          <button v-if="canCancelRow(o)" type="button" class="link danger" @click="onCancel(o.orderNo)">取消</button>
+        </div>
       </div>
     </div>
   </div>
@@ -215,13 +249,21 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
 }
-.link {
+.item-actions {
   margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.link {
   border: none;
   background: none;
   color: #1f6dff;
   cursor: pointer;
   padding: 0;
   font-size: 12px;
+}
+.link.danger {
+  color: #b91c1c;
 }
 </style>

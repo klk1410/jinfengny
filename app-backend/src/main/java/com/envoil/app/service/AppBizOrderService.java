@@ -4,6 +4,7 @@ import com.envoil.app.model.OpenidBizScope;
 import com.envoil.app.model.OrderCreateRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -71,8 +72,8 @@ public class AppBizOrderService {
     public List<Map<String, Object>> listOrders(String openid) {
         OpenidBizScope scope = scopeService.resolve(openid);
         StringBuilder sql = new StringBuilder()
-                .append("SELECT o.order_no, m.merchant_name, o.order_type, o.status, o.pay_type, ")
-                .append("o.amount_payable, o.order_time ")
+                .append("SELECT o.order_no, m.merchant_name, o.order_type, o.status AS st, o.pay_type, ")
+                .append("o.amount_payable, o.order_time, o.work_order_no ")
                 .append("FROM biz_env_order o ")
                 .append("JOIN biz_env_merchant m ON m.merchant_id = o.merchant_id AND m.del_flag = '0' ")
                 .append("WHERE o.del_flag = '0' ");
@@ -84,14 +85,85 @@ public class AppBizOrderService {
             row.put("orderNo", rs.getString("order_no"));
             row.put("merchantName", rs.getString("merchant_name"));
             row.put("orderType", labelOrderType(rs.getString("order_type")));
-            row.put("status", labelOrderStatus(rs.getString("status")));
+            row.put("statusCode", rs.getString("st"));
+            row.put("status", labelOrderStatus(rs.getString("st")));
             row.put("payType", labelPayType(rs.getString("pay_type")));
             row.put("amountPayable", rs.getBigDecimal("amount_payable").doubleValue());
             row.put("createTime", formatTs(rs.getTimestamp("order_time")));
+            row.put("workOrderNo", rs.getString("work_order_no"));
             return row;
         });
     }
 
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> confirmOrder(String openid, String orderNo) {
+        OpenidBizScope scope = scopeService.resolve(openid);
+        if (scope.getUserRole() != '1' && scope.getUserRole() != '2') {
+            throw new IllegalArgumentException("仅主端或代理可确认订单");
+        }
+        Map<String, Object> row = jdbcTemplate.query(
+                "SELECT o.order_id, o.order_no, o.status, o.agent_id, o.merchant_id, o.order_type "
+                        + "FROM biz_env_order o WHERE o.order_no = ? AND o.del_flag = '0'",
+                rs -> {
+                    if (!rs.next()) {
+                        return null;
+                    }
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("order_id", rs.getLong("order_id"));
+                    m.put("order_no", rs.getString("order_no"));
+                    m.put("status", rs.getString("status"));
+                    m.put("agent_id", rs.getLong("agent_id"));
+                    m.put("merchant_id", rs.getLong("merchant_id"));
+                    m.put("order_type", rs.getString("order_type"));
+                    return m;
+                },
+                orderNo);
+        if (row == null) {
+            return null;
+        }
+        if (!canConfirmOrder(scope, row)) {
+            return null;
+        }
+        if (!"0".equals(String.valueOf(row.get("status")))) {
+            throw new IllegalArgumentException("仅待确认订单可确认");
+        }
+        long merchantId = ((Number) row.get("merchant_id")).longValue();
+        long agentId = ((Number) row.get("agent_id")).longValue();
+        long orderId = ((Number) row.get("order_id")).longValue();
+        String orderType = String.valueOf(row.get("order_type"));
+        String woNo = AppBizWorkOrderService.newWorkOrderNo();
+        jdbcTemplate.update(
+                "INSERT INTO biz_env_work_order (work_order_no, order_id, order_no, merchant_id, work_order_type, status, agent_id, del_flag) "
+                        + "VALUES (?, ?, ?, ?, ?, '1', ?, '0')",
+                woNo,
+                orderId,
+                orderNo,
+                merchantId,
+                orderType,
+                agentId);
+        int n = jdbcTemplate.update(
+                "UPDATE biz_env_order SET status = '1', work_order_no = ? WHERE order_no = ? AND del_flag = '0' AND status = '0'",
+                woNo,
+                orderNo);
+        if (n == 0) {
+            throw new IllegalArgumentException("确认失败，订单状态已变更");
+        }
+        return loadOrderMap(openid, orderNo);
+    }
+
+    private boolean canConfirmOrder(OpenidBizScope scope, Map<String, Object> orderRow) {
+        char r = scope.getUserRole();
+        long aid = ((Number) orderRow.get("agent_id")).longValue();
+        if (r == '1') {
+            return true;
+        }
+        if (r == '2') {
+            return scope.getAgentId() != null && scope.getAgentId() == aid;
+        }
+        return false;
+    }
+
+    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> cancelOrder(String openid, String orderNo) {
         OpenidBizScope scope = scopeService.resolve(openid);
         Map<String, Object> row = jdbcTemplate.query(
@@ -119,10 +191,20 @@ public class AppBizOrderService {
         if (!canSeeOrder(scope, row)) {
             return null;
         }
+        char ur = scope.getUserRole();
+        if (ur == '3') {
+            throw new IllegalArgumentException("业务员不可取消订单");
+        }
         String st = String.valueOf(row.get("status"));
         if ("3".equals(st) || "4".equals(st)) {
             throw new IllegalArgumentException("当前状态不可取消");
         }
+        if (ur == '4' && !"0".equals(st) && !"1".equals(st)) {
+            throw new IllegalArgumentException("商家仅可在待确认或待分配阶段取消订单");
+        }
+        jdbcTemplate.update(
+                "UPDATE biz_env_work_order SET status = '4' WHERE order_no = ? AND del_flag = '0' AND status IN ('0','1','2')",
+                orderNo);
         int n = jdbcTemplate.update(
                 "UPDATE biz_env_order SET status = '4', cancel_time = CURRENT_TIMESTAMP WHERE order_no = ? AND del_flag = '0'",
                 orderNo);

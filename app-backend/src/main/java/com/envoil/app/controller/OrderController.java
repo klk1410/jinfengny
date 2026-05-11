@@ -34,6 +34,15 @@ public class OrderController {
         return ApiResponse.ok(appBizOrderService.listOrders(openid));
     }
 
+    @PostMapping("/confirm/{orderNo}")
+    public ApiResponse<?> confirm(@PathVariable String orderNo, @RequestParam String openid) {
+        Map<String, Object> data = appBizOrderService.confirmOrder(openid, orderNo);
+        if (data == null) {
+            return ApiResponse.fail("未找到订单或无确认权限");
+        }
+        return ApiResponse.ok(data);
+    }
+
     @PostMapping("/cancel/{orderNo}")
     public ApiResponse<?> cancel(@PathVariable String orderNo, @RequestParam String openid) {
         Map<String, Object> data = appBizOrderService.cancelOrder(openid, orderNo);

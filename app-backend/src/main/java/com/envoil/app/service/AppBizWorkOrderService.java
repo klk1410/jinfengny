@@ -1,0 +1,317 @@
+package com.envoil.app.service;
+
+import com.envoil.app.model.OpenidBizScope;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+@Service
+public class AppBizWorkOrderService {
+
+    private static final SimpleDateFormat TS_FMT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter WO_NO_TS = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+
+    private final JdbcTemplate jdbcTemplate;
+    private final AppOpenidBizScopeService scopeService;
+
+    public AppBizWorkOrderService(JdbcTemplate jdbcTemplate, AppOpenidBizScopeService scopeService) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.scopeService = scopeService;
+    }
+
+    public List<Map<String, Object>> listWorkOrders(String openid) {
+        OpenidBizScope scope = scopeService.resolve(openid);
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT w.work_order_no, w.order_no, w.work_order_time, w.work_order_type, w.status, ")
+                .append("w.agent_id, w.merchant_id, w.receive_salesman_id, m.merchant_name, rs.salesman_name AS receive_salesman_name ")
+                .append("FROM biz_env_work_order w ")
+                .append("JOIN biz_env_merchant m ON m.merchant_id = w.merchant_id AND m.del_flag = '0' ")
+                .append("LEFT JOIN biz_env_salesman rs ON rs.salesman_id = w.receive_salesman_id AND rs.del_flag = '0' ")
+                .append("WHERE w.del_flag = '0' ");
+        List<Object> args = new ArrayList<>();
+        appendWorkOrderScope(sql, args, scope);
+        sql.append(" ORDER BY w.work_order_time DESC, w.work_order_id DESC");
+        return jdbcTemplate.query(sql.toString(), args.toArray(), (rs, rowNum) -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("workOrderNo", rs.getString("work_order_no"));
+            row.put("orderNo", rs.getString("order_no"));
+            row.put("merchantName", rs.getString("merchant_name"));
+            row.put("workOrderType", labelWorkType(rs.getString("work_order_type")));
+            row.put("status", labelWorkStatus(rs.getString("status")));
+            row.put("statusCode", rs.getString("status"));
+            row.put("receiveSalesmanId", rs.getObject("receive_salesman_id") == null ? null : rs.getLong("receive_salesman_id"));
+            row.put("receiveSalesmanName", rs.getString("receive_salesman_name"));
+            row.put("workOrderTime", formatTs(rs.getTimestamp("work_order_time")));
+            return row;
+        });
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> receiveWorkOrder(String openid, String workOrderNo) {
+        OpenidBizScope scope = scopeService.resolve(openid);
+        if (scope.getUserRole() != '3' || scope.getSalesmanId() == null || scope.getAgentId() == null) {
+            throw new IllegalArgumentException("仅业务员可抢单");
+        }
+        Map<String, Object> wo = loadWorkOrder(workOrderNo);
+        if (wo == null) {
+            return null;
+        }
+        if (!canOperateWorkOrder(scope, wo)) {
+            return null;
+        }
+        String st = String.valueOf(wo.get("status"));
+        if (!"1".equals(st) && !"0".equals(st)) {
+            throw new IllegalArgumentException("当前工单不可抢单");
+        }
+        if (wo.get("receive_salesman_id") != null) {
+            throw new IllegalArgumentException("工单已被接单");
+        }
+        long agentId = ((Number) wo.get("agent_id")).longValue();
+        if (agentId != scope.getAgentId()) {
+            return null;
+        }
+        int n = jdbcTemplate.update(
+                "UPDATE biz_env_work_order SET receive_salesman_id = ?, status = '2', work_start_time = CURRENT_TIMESTAMP "
+                        + "WHERE work_order_no = ? AND del_flag = '0' AND status IN ('0','1') AND receive_salesman_id IS NULL",
+                scope.getSalesmanId(),
+                workOrderNo);
+        if (n == 0) {
+            throw new IllegalArgumentException("抢单失败，请重试");
+        }
+        String orderNo = (String) wo.get("order_no");
+        if (orderNo != null && !orderNo.isEmpty()) {
+            jdbcTemplate.update(
+                    "UPDATE biz_env_order SET receive_salesman_id = ?, status = '2' WHERE order_no = ? AND del_flag = '0'",
+                    scope.getSalesmanId(),
+                    orderNo);
+        }
+        return firstMap(openid, workOrderNo);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> assignWorkOrder(String openid, String workOrderNo, long targetSalesmanId) {
+        OpenidBizScope scope = scopeService.resolve(openid);
+        if (scope.getUserRole() != '1' && scope.getUserRole() != '2') {
+            throw new IllegalArgumentException("仅主端或代理可指派");
+        }
+        if (scope.getUserRole() == '2' && scope.getAgentId() == null) {
+            return null;
+        }
+        Map<String, Object> wo = loadWorkOrder(workOrderNo);
+        if (wo == null) {
+            return null;
+        }
+        if (!canOperateWorkOrder(scope, wo)) {
+            return null;
+        }
+        long agentId = ((Number) wo.get("agent_id")).longValue();
+        if (scope.getUserRole() == '2' && scope.getAgentId() != agentId) {
+            return null;
+        }
+        String st = String.valueOf(wo.get("status"));
+        if (!"1".equals(st) && !"0".equals(st)) {
+            throw new IllegalArgumentException("仅待确认/待分配工单可指派");
+        }
+        if (wo.get("receive_salesman_id") != null) {
+            throw new IllegalArgumentException("工单已有接单人，请使用完工或后续流程");
+        }
+        Integer cnt = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM biz_env_salesman WHERE salesman_id = ? AND agent_id = ? AND del_flag = '0'",
+                Integer.class,
+                targetSalesmanId,
+                agentId);
+        if (cnt == null || cnt == 0) {
+            throw new IllegalArgumentException("指派对象不是本代理业务员");
+        }
+        int n = jdbcTemplate.update(
+                "UPDATE biz_env_work_order SET receive_salesman_id = ?, status = '2', work_start_time = CURRENT_TIMESTAMP "
+                        + "WHERE work_order_no = ? AND del_flag = '0' AND status IN ('0','1') AND receive_salesman_id IS NULL",
+                targetSalesmanId,
+                workOrderNo);
+        if (n == 0) {
+            throw new IllegalArgumentException("指派失败");
+        }
+        String orderNo = (String) wo.get("order_no");
+        if (orderNo != null && !orderNo.isEmpty()) {
+            jdbcTemplate.update(
+                    "UPDATE biz_env_order SET receive_salesman_id = ?, status = '2' WHERE order_no = ? AND del_flag = '0'",
+                    targetSalesmanId,
+                    orderNo);
+        }
+        return firstMap(openid, workOrderNo);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> finishWorkOrder(String openid, String workOrderNo) {
+        OpenidBizScope scope = scopeService.resolve(openid);
+        Map<String, Object> wo = loadWorkOrder(workOrderNo);
+        if (wo == null) {
+            return null;
+        }
+        if (!canOperateWorkOrder(scope, wo)) {
+            return null;
+        }
+        if (!"2".equals(String.valueOf(wo.get("status")))) {
+            throw new IllegalArgumentException("仅已接收工单可完工");
+        }
+        Long recv = wo.get("receive_salesman_id") == null ? null : ((Number) wo.get("receive_salesman_id")).longValue();
+        char r = scope.getUserRole();
+        if (r == '3') {
+            if (scope.getSalesmanId() == null || !scope.getSalesmanId().equals(recv)) {
+                throw new IllegalArgumentException("仅接单人可完工");
+            }
+        } else if (r == '2') {
+            if (scope.getAgentId() == null || ((Number) wo.get("agent_id")).longValue() != scope.getAgentId()) {
+                return null;
+            }
+        } else if (r != '1') {
+            throw new IllegalArgumentException("无权完工");
+        }
+        int n = jdbcTemplate.update(
+                "UPDATE biz_env_work_order SET status = '3', work_end_time = CURRENT_TIMESTAMP WHERE work_order_no = ? AND del_flag = '0' AND status = '2'",
+                workOrderNo);
+        if (n == 0) {
+            throw new IllegalArgumentException("完工失败");
+        }
+        String orderNo = (String) wo.get("order_no");
+        if (orderNo != null && !orderNo.isEmpty()) {
+            jdbcTemplate.update(
+                    "UPDATE biz_env_order SET status = '3', finish_time = CURRENT_TIMESTAMP WHERE order_no = ? AND del_flag = '0'",
+                    orderNo);
+        }
+        return firstMap(openid, workOrderNo);
+    }
+
+    private Map<String, Object> firstMap(String openid, String workOrderNo) {
+        for (Map<String, Object> m : listWorkOrders(openid)) {
+            if (workOrderNo.equals(m.get("workOrderNo"))) {
+                return m;
+            }
+        }
+        return new LinkedHashMap<>();
+    }
+
+    private Map<String, Object> loadWorkOrder(String workOrderNo) {
+        return jdbcTemplate.query(
+                "SELECT work_order_no, order_no, merchant_id, agent_id, status, receive_salesman_id, work_order_type "
+                        + "FROM biz_env_work_order WHERE work_order_no = ? AND del_flag = '0'",
+                rs -> {
+                    if (!rs.next()) {
+                        return null;
+                    }
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("work_order_no", rs.getString("work_order_no"));
+                    m.put("order_no", rs.getString("order_no"));
+                    m.put("merchant_id", rs.getLong("merchant_id"));
+                    m.put("agent_id", rs.getLong("agent_id"));
+                    m.put("status", rs.getString("status"));
+                    m.put("receive_salesman_id", rs.getObject("receive_salesman_id") == null ? null : rs.getLong("receive_salesman_id"));
+                    m.put("work_order_type", rs.getString("work_order_type"));
+                    return m;
+                },
+                workOrderNo);
+    }
+
+    private boolean canOperateWorkOrder(OpenidBizScope scope, Map<String, Object> wo) {
+        char r = scope.getUserRole();
+        long aid = ((Number) wo.get("agent_id")).longValue();
+        long mid = ((Number) wo.get("merchant_id")).longValue();
+        if (r == '1') {
+            return true;
+        }
+        if (r == '2') {
+            return scope.getAgentId() != null && scope.getAgentId() == aid;
+        }
+        if (r == '4') {
+            return scope.getMerchantId() != null && scope.getMerchantId() == mid;
+        }
+        if (r == '3') {
+            return scope.getAgentId() != null && scope.getAgentId() == aid;
+        }
+        return false;
+    }
+
+    private void appendWorkOrderScope(StringBuilder sql, List<Object> args, OpenidBizScope scope) {
+        char r = scope.getUserRole();
+        if (r == '1') {
+            return;
+        }
+        if (r == '2' && scope.getAgentId() != null) {
+            sql.append(" AND w.agent_id = ?");
+            args.add(scope.getAgentId());
+            return;
+        }
+        if (r == '4' && scope.getMerchantId() != null) {
+            sql.append(" AND w.merchant_id = ?");
+            args.add(scope.getMerchantId());
+            return;
+        }
+        if (r == '3' && scope.getAgentId() != null && scope.getSalesmanId() != null) {
+            sql.append(" AND w.agent_id = ? AND (")
+                    .append("(w.status = '1' AND w.receive_salesman_id IS NULL) ")
+                    .append("OR w.receive_salesman_id = ? ")
+                    .append("OR (m.salesman_id = ? AND m.agent_id = ?)")
+                    .append(")");
+            args.add(scope.getAgentId());
+            args.add(scope.getSalesmanId());
+            args.add(scope.getSalesmanId());
+            args.add(scope.getAgentId());
+            return;
+        }
+        sql.append(" AND 1 = 0");
+    }
+
+    private static String labelWorkType(String code) {
+        if ("1".equals(code)) {
+            return "加油";
+        }
+        if ("2".equals(code)) {
+            return "维护";
+        }
+        if ("3".equals(code)) {
+            return "外出访问";
+        }
+        return code == null ? "" : code;
+    }
+
+    private static String labelWorkStatus(String code) {
+        if ("0".equals(code)) {
+            return "待确认";
+        }
+        if ("1".equals(code)) {
+            return "待分配";
+        }
+        if ("2".equals(code)) {
+            return "已接收";
+        }
+        if ("3".equals(code)) {
+            return "已完成";
+        }
+        if ("4".equals(code)) {
+            return "工单取消";
+        }
+        return code == null ? "" : code;
+    }
+
+    private static String formatTs(Timestamp ts) {
+        if (ts == null) {
+            return "";
+        }
+        synchronized (TS_FMT) {
+            return TS_FMT.format(ts);
+        }
+    }
+
+    public static String newWorkOrderNo() {
+        return "WO" + LocalDateTime.now().format(WO_NO_TS) + String.format("%02d", (int) (Math.random() * 100));
+    }
+}

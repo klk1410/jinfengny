@@ -3,6 +3,7 @@ package com.envoil.admin.service;
 import com.envoil.admin.model.DashboardSummary;
 import com.envoil.admin.model.MerchantView;
 import com.envoil.admin.model.OrderView;
+import com.envoil.admin.model.WorkOrderView;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,18 @@ public class AdminBizJdbcService {
         v.setAgentName(rs.getString("agent_name"));
         v.setSalesmanName(rs.getString("salesman_name"));
         v.setStatus(rs.getString("status_label"));
+        return v;
+    };
+
+    private static final RowMapper<WorkOrderView> WORK_ORDER_RM = (rs, rowNum) -> {
+        WorkOrderView v = new WorkOrderView();
+        v.setWorkOrderNo(rs.getString("work_order_no"));
+        v.setOrderNo(rs.getString("order_no"));
+        v.setMerchantName(rs.getString("merchant_name"));
+        v.setWorkOrderType(rs.getString("work_order_type_label"));
+        v.setStatus(rs.getString("status_label"));
+        v.setReceiveSalesmanName(rs.getString("receive_salesman_name"));
+        v.setWorkOrderTime(formatTs(rs.getTimestamp("work_order_time")));
         return v;
     };
 
@@ -84,6 +97,22 @@ public class AdminBizJdbcService {
                 + "WHERE o.del_flag = '0' "
                 + "ORDER BY o.order_time DESC, o.order_id DESC";
         return jdbcTemplate.query(sql, ORDER_RM);
+    }
+
+    public List<WorkOrderView> listWorkOrders() {
+        String sql = ""
+                + "SELECT w.work_order_no, w.order_no, m.merchant_name, w.work_order_time, "
+                + "  CASE w.work_order_type WHEN '1' THEN '加油' WHEN '2' THEN '维护' WHEN '3' THEN '外出访问' ELSE w.work_order_type END AS work_order_type_label, "
+                + "  CASE w.status "
+                + "    WHEN '0' THEN '待确认' WHEN '1' THEN '待分配' WHEN '2' THEN '已接收' "
+                + "    WHEN '3' THEN '已完成' WHEN '4' THEN '工单取消' ELSE w.status END AS status_label, "
+                + "  rs.salesman_name AS receive_salesman_name "
+                + "FROM biz_env_work_order w "
+                + "JOIN biz_env_merchant m ON m.merchant_id = w.merchant_id AND m.del_flag = '0' "
+                + "LEFT JOIN biz_env_salesman rs ON rs.salesman_id = w.receive_salesman_id AND rs.del_flag = '0' "
+                + "WHERE w.del_flag = '0' "
+                + "ORDER BY w.work_order_time DESC, w.work_order_id DESC";
+        return jdbcTemplate.query(sql, WORK_ORDER_RM);
     }
 
     private long count(String sql) {
