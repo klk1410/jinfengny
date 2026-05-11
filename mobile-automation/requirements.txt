@@ -1,0 +1,6 @@
+# Android phone automation via USB debugging (recommended).
+uiautomator2>=3.2.0
+
+# Optional: run H5 inside desktop Chrome against the same URL to prototype selectors (not on real phone).
+# selenium>=4.15.0
+# webdriver-manager>=4.0.1

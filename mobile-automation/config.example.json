@@ -1,0 +1,20 @@
+{
+  "device_serial": null,
+  "start_url": "https://5dj.szqdqh.top",
+  "wechat_pkg": "com.tencent.mm",
+  "browser_pkg": null,
+  "timeouts_sec": {
+    "default": 30,
+    "after_open_url": 15,
+    "wechat_launch": 45,
+    "pay_sheet": 30
+  },
+  "labels": {
+    "pay_now": ["立即支付", "Pay Now"],
+    "goto_wechat_pay": ["跳转到微信支付", "微信支付", "去支付"],
+    "claim_now": ["立即领取"],
+    "mini_program_about": ["小程序信息", "关于小程序"],
+    "close_about": []
+  },
+  "output_dir": "captures"
+}
