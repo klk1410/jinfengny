@@ -2,11 +2,12 @@
 import { computed, inject, ref } from "vue";
 import { useRouter } from "vue-router";
 import { requestJson } from "../../api.js";
+import "./promo-form.css";
 
 const shell = inject("appShell");
 const router = useRouter();
 const err = ref("");
-const ok = ref("");
+
 const partnerName = ref("");
 const contactName = ref("");
 const contactPhone = ref("");
@@ -16,9 +17,21 @@ const agentId = ref("1");
 const roleCode = computed(() => shell.portal?.roleCode ?? "");
 const isMain = computed(() => roleCode.value === "main");
 
+function validate() {
+  if (!partnerName.value.trim()) {
+    err.value = "请填写合作方名称";
+    return false;
+  }
+  if (isMain.value && !String(agentId.value).trim()) {
+    err.value = "主端请填写代理 ID";
+    return false;
+  }
+  return true;
+}
+
 async function submit() {
   err.value = "";
-  ok.value = "";
+  if (!validate()) return;
   try {
     const body = {
       openid: shell.loginOpenid,
@@ -28,14 +41,13 @@ async function submit() {
       remark: remark.value.trim() || null
     };
     if (isMain.value) {
-      body.agentId = Number(agentId.value) || null;
+      body.agentId = Number(agentId.value);
     }
     await requestJson("/app-api/promo/coops", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     });
-    ok.value = "已保存";
     router.push({ name: "promo-coops" });
   } catch (e) {
     err.value = e.message || String(e);
@@ -44,81 +56,48 @@ async function submit() {
 </script>
 
 <template>
-  <div class="page">
-    <h2 class="page-title">推广 · 新增合作</h2>
-    <p v-if="err" class="err">{{ err }}</p>
-    <p v-if="ok" class="ok">{{ ok }}</p>
-    <div class="card">
-      <div v-if="isMain" class="row">
-        <label>代理 ID</label>
-        <input v-model="agentId" class="inp" type="text" />
+  <div class="pf-page">
+    <p v-if="err" class="pf-err">{{ err }}</p>
+
+    <div class="pf-card">
+      <div v-if="isMain" class="pf-row">
+        <div class="pf-label req">代理</div>
+        <div class="pf-field-wrap">
+          <input v-model="agentId" class="pf-field" type="text" placeholder="主端填写代理 ID" />
+        </div>
       </div>
-      <div class="row">
-        <label>合作方名称</label>
-        <input v-model="partnerName" class="inp" type="text" placeholder="必填" />
+
+      <div class="pf-row">
+        <div class="pf-label req">合作方名称</div>
+        <div class="pf-field-wrap">
+          <input v-model="partnerName" class="pf-field" type="text" placeholder="请填写合作方名称" />
+        </div>
       </div>
-      <div class="row">
-        <label>联系人</label>
-        <input v-model="contactName" class="inp" type="text" />
+
+      <div class="pf-row">
+        <div class="pf-label">联系人</div>
+        <div class="pf-field-wrap">
+          <input v-model="contactName" class="pf-field" type="text" placeholder="请填写联系人" />
+        </div>
       </div>
-      <div class="row">
-        <label>电话</label>
-        <input v-model="contactPhone" class="inp" type="text" />
+
+      <div class="pf-row">
+        <div class="pf-label">联系电话</div>
+        <div class="pf-field-wrap">
+          <input v-model="contactPhone" class="pf-field" type="tel" placeholder="请填写联系电话" />
+        </div>
       </div>
-      <div class="row">
-        <label>备注</label>
-        <input v-model="remark" class="inp" type="text" />
+
+      <div class="pf-row">
+        <div class="pf-label">说明</div>
+        <div class="pf-field-wrap">
+          <input v-model="remark" class="pf-field" type="text" placeholder="请填写说明" />
+        </div>
       </div>
-      <button type="button" class="btn" @click="submit">提交</button>
+    </div>
+
+    <div class="pf-footer">
+      <button type="button" class="pf-submit" @click="submit">提交</button>
     </div>
   </div>
 </template>
-
-<style scoped>
-.page-title {
-  margin: 0 0 10px;
-  font-size: 16px;
-  font-weight: 600;
-}
-.err {
-  color: #b91c1c;
-  font-size: 13px;
-}
-.ok {
-  color: #15803d;
-  font-size: 13px;
-}
-.card {
-  background: #fff;
-  border-radius: 10px;
-  padding: 12px;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
-}
-.row {
-  margin-bottom: 10px;
-}
-.row label {
-  display: block;
-  font-size: 12px;
-  color: #64748b;
-  margin-bottom: 4px;
-}
-.inp {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid #d0d7e2;
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 14px;
-}
-.btn {
-  margin-top: 8px;
-  border: none;
-  background: #1f6dff;
-  color: #fff;
-  border-radius: 8px;
-  padding: 10px 16px;
-  font-size: 14px;
-  cursor: pointer;
-}
-</style>

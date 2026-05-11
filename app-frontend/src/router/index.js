@@ -17,13 +17,48 @@ export const router = createRouter({
         { path: "work-orders", name: "work-orders", component: () => import("../views/WorkOrdersView.vue") },
         { path: "stock", name: "stock", component: () => import("../views/StockView.vue") },
         { path: "ledger", name: "ledger", component: () => import("../views/LedgerView.vue") },
-        { path: "promo/coops", name: "promo-coops", component: () => import("../views/promo/PromoCoopsView.vue") },
-        { path: "promo/coop-new", name: "promo-coop-new", component: () => import("../views/promo/PromoCoopNewView.vue") },
-        { path: "promo/stores", name: "promo-stores", component: () => import("../views/promo/PromoStoresView.vue") },
-        { path: "promo/store-new", name: "promo-store-new", component: () => import("../views/promo/PromoStoreNewView.vue") },
-        { path: "promo/devices", name: "promo-devices", component: () => import("../views/promo/PromoDevicesView.vue") },
-        { path: "promo/withdraws", name: "promo-withdraws", component: () => import("../views/promo/PromoWithdrawsView.vue") },
-        { path: "promo/prepaids", name: "promo-prepaids", component: () => import("../views/promo/PromoPrepaidsView.vue") }
+        {
+          path: "promo/coops",
+          name: "promo-coops",
+          meta: { headerTitle: "合作管理" },
+          component: () => import("../views/promo/PromoCoopsView.vue")
+        },
+        {
+          path: "promo/coop-new",
+          name: "promo-coop-new",
+          meta: { headerTitle: "新增合作" },
+          component: () => import("../views/promo/PromoCoopNewView.vue")
+        },
+        {
+          path: "promo/stores",
+          name: "promo-stores",
+          meta: { headerTitle: "店铺管理" },
+          component: () => import("../views/promo/PromoStoresView.vue")
+        },
+        {
+          path: "promo/store-new",
+          name: "promo-store-new",
+          meta: { headerTitle: "新增店铺" },
+          component: () => import("../views/promo/PromoStoreNewView.vue")
+        },
+        {
+          path: "promo/devices",
+          name: "promo-devices",
+          meta: { headerTitle: "推广设备" },
+          component: () => import("../views/promo/PromoDevicesView.vue")
+        },
+        {
+          path: "promo/withdraws",
+          name: "promo-withdraws",
+          meta: { headerTitle: "提现管理" },
+          component: () => import("../views/promo/PromoWithdrawsView.vue")
+        },
+        {
+          path: "promo/prepaids",
+          name: "promo-prepaids",
+          meta: { headerTitle: "预付款管理" },
+          component: () => import("../views/promo/PromoPrepaidsView.vue")
+        }
       ]
     }
   ]

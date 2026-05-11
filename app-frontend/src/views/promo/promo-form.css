@@ -1,0 +1,293 @@
+/* 推广管理 · 表单/详细页统一风格（移动端） */
+.pf-page {
+  min-height: 100%;
+  padding: 10px 12px 24px;
+  background: linear-gradient(180deg, #e8f0fe 0%, #eef1f6 40%);
+  box-sizing: border-box;
+}
+
+.pf-err {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+.pf-card {
+  background: #fff;
+  border: 1px solid #3b82f6;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(31, 109, 255, 0.08);
+}
+
+.pf-row {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 12px;
+  gap: 10px;
+  border-bottom: 1px solid #e8eef8;
+}
+
+.pf-row:last-of-type {
+  border-bottom: none;
+}
+
+.pf-label {
+  flex: 0 0 92px;
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.35;
+}
+
+.pf-label.req::before {
+  content: "*";
+  color: #ef4444;
+  margin-right: 4px;
+}
+
+.pf-field-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.pf-field {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: #0f172a;
+  text-align: right;
+  outline: none;
+  padding: 10px 0;
+}
+
+.pf-field::placeholder {
+  color: #94a3b8;
+}
+
+select.pf-field {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: left center;
+  padding-left: 16px;
+  text-align: right;
+}
+
+.pf-chevron {
+  font-size: 12px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.pf-geo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex: 1;
+}
+
+.pf-geo-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.pf-geo-line input {
+  width: 108px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: #0f172a;
+  text-align: right;
+  outline: none;
+}
+
+.pf-map-btn {
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  padding: 4px 6px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.pf-region {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.pf-region select {
+  max-width: 33%;
+  font-size: 12px;
+  border: none;
+  background: #f8fafc;
+  border-radius: 6px;
+  padding: 6px 4px;
+  color: #334155;
+  outline: none;
+}
+
+.pf-upload-row {
+  justify-content: space-between;
+}
+
+.pf-upload {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #64748b;
+}
+
+.pf-upload input[type="file"] {
+  display: none;
+}
+
+.pf-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #e2e8f0;
+}
+
+.pf-footer {
+  margin-top: 18px;
+  padding: 0 4px;
+}
+
+.pf-submit {
+  width: 100%;
+  border: none;
+  border-radius: 24px;
+  padding: 14px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(180deg, #2d7cff 0%, #1f6dff 100%);
+  box-shadow: 0 4px 14px rgba(31, 109, 255, 0.35);
+}
+
+.pf-submit:active {
+  opacity: 0.92;
+}
+
+/* 列表块（记录、流水） */
+.pf-panel {
+  margin-top: 14px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.pf-panel-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.pf-panel .pf-muted {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.pf-item {
+  border-top: 1px solid #eef1f6;
+  padding: 10px 0;
+  font-size: 13px;
+}
+
+.pf-card > .pf-item:first-of-type,
+.pf-panel > .pf-item:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.pf-line-strong {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.pf-line-muted {
+  color: #64748b;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.pf-mini-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.pf-mini {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pf-mini.ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.pf-mini.bad {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.pf-refresh {
+  margin-bottom: 10px;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.pf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pf-tool {
+  border: none;
+  background: #1f6dff;
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pf-tool--ghost {
+  background: #e2e8f0;
+  color: #334155;
+}

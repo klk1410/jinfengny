@@ -1,7 +1,6 @@
 package com.envoil.app.model;
 
 import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
 
 public class MerchantCreateRequest {
 
@@ -11,22 +10,47 @@ public class MerchantCreateRequest {
     /** 主端创建时必填 */
     private Long agentId;
 
+    @NotBlank(message = "所属行业不能为空")
+    private String industryType;
+
     @NotBlank(message = "店铺名称不能为空")
     private String merchantName;
 
+    @NotBlank(message = "联系人不能为空")
     private String contactName;
+
+    @NotBlank(message = "联系电话不能为空")
     private String contactPhone;
-    private String industryType;
+
+    @NotBlank(message = "省不能为空")
     private String province;
+
+    @NotBlank(message = "市不能为空")
     private String city;
+
+    @NotBlank(message = "区不能为空")
     private String district;
+
+    @NotBlank(message = "详细地址不能为空")
     private String addressDetail;
 
-    @NotNull(message = "单价不能为空")
+    /** 经度 */
+    private Double longitude;
+
+    /** 纬度 */
+    private Double latitude;
+
+    /** 单价（元/桶），未传则按 0 */
     private Double oilUnitPrice;
 
     private Double merchantCommission;
     private Long salesmanId;
+
+    /** 关联商家（同代理下已有门店，可选） */
+    private Long linkedMerchantId;
+
+    private String remark;
+    private String storeImageUrl;
 
     public String getOpenid() {
         return openid;
@@ -42,6 +66,14 @@ public class MerchantCreateRequest {
 
     public void setAgentId(Long agentId) {
         this.agentId = agentId;
+    }
+
+    public String getIndustryType() {
+        return industryType;
+    }
+
+    public void setIndustryType(String industryType) {
+        this.industryType = industryType;
     }
 
     public String getMerchantName() {
@@ -66,14 +98,6 @@ public class MerchantCreateRequest {
 
     public void setContactPhone(String contactPhone) {
         this.contactPhone = contactPhone;
-    }
-
-    public String getIndustryType() {
-        return industryType;
-    }
-
-    public void setIndustryType(String industryType) {
-        this.industryType = industryType;
     }
 
     public String getProvince() {
@@ -108,6 +132,22 @@ public class MerchantCreateRequest {
         this.addressDetail = addressDetail;
     }
 
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
     public Double getOilUnitPrice() {
         return oilUnitPrice;
     }
@@ -130,5 +170,29 @@ public class MerchantCreateRequest {
 
     public void setSalesmanId(Long salesmanId) {
         this.salesmanId = salesmanId;
+    }
+
+    public Long getLinkedMerchantId() {
+        return linkedMerchantId;
+    }
+
+    public void setLinkedMerchantId(Long linkedMerchantId) {
+        this.linkedMerchantId = linkedMerchantId;
+    }
+
+    public String getRemark() {
+        return remark;
+    }
+
+    public void setRemark(String remark) {
+        this.remark = remark;
+    }
+
+    public String getStoreImageUrl() {
+        return storeImageUrl;
+    }
+
+    public void setStoreImageUrl(String storeImageUrl) {
+        this.storeImageUrl = storeImageUrl;
     }
 }

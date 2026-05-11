@@ -15,6 +15,9 @@ const canOpenBusiness = computed(() => !!portal.value?.hasBusinessAccess);
 const portalSections = computed(() => portal.value?.sections || []);
 const roleLabel = computed(() => portal.value?.role || "—");
 const isHome = computed(() => route.name === "home");
+const headerTitle = computed(() =>
+  typeof route.meta.headerTitle === "string" && route.meta.headerTitle ? route.meta.headerTitle : "环保油管理"
+);
 
 async function refreshPortal() {
   loadError.value = "";
@@ -68,7 +71,7 @@ onMounted(() => {
       <button type="button" class="nav-btn" :class="{ 'nav-btn--muted': isHome }" aria-label="返回" @click="onHeaderBack">
         ‹
       </button>
-      <h1 class="mp-title">环保油管理</h1>
+      <h1 class="mp-title">{{ headerTitle }}</h1>
       <div class="mp-actions" aria-hidden="true">
         <span class="caps">⋯</span>
         <span class="ring" />

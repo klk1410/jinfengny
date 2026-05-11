@@ -95,15 +95,28 @@ public class AppBizDataService {
         if (salesmanId != null) {
             ensureSalesmanBelongsToAgent(salesmanId, agentId);
         }
+        if (req.getLinkedMerchantId() != null) {
+            ensureLinkedMerchant(req.getLinkedMerchantId(), agentId);
+        }
+        if (req.getLongitude() == null || req.getLatitude() == null) {
+            throw new IllegalArgumentException("请填写经纬度");
+        }
         final Long insertSalesmanId = salesmanId;
         BigDecimal oil = BigDecimal.valueOf(req.getOilUnitPrice() == null ? 0 : req.getOilUnitPrice());
         BigDecimal comm = BigDecimal.valueOf(req.getMerchantCommission() == null ? 0 : req.getMerchantCommission());
+        BigDecimal lon = BigDecimal.valueOf(req.getLongitude());
+        BigDecimal lat = BigDecimal.valueOf(req.getLatitude());
+        String img = req.getStoreImageUrl();
+        if (img != null && img.length() > 8000) {
+            throw new IllegalArgumentException("店铺图片数据过大，请压缩或使用外链地址");
+        }
         GeneratedKeyHolder kh = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement(
                     "INSERT INTO biz_env_merchant (agent_id, salesman_id, industry_type, merchant_name, contact_name, contact_phone, "
-                            + "province, city, district, address_detail, oil_unit_price, merchant_commission, status, del_flag) "
-                            + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'0','0')",
+                            + "longitude, latitude, province, city, district, address_detail, oil_unit_price, merchant_commission, "
+                            + "remark, store_image_url, linked_merchant_id, status, del_flag) "
+                            + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'0','0')",
                     Statement.RETURN_GENERATED_KEYS);
             ps.setLong(1, agentId);
             if (insertSalesmanId == null) {
@@ -115,12 +128,21 @@ public class AppBizDataService {
             ps.setString(4, req.getMerchantName());
             ps.setString(5, req.getContactName());
             ps.setString(6, req.getContactPhone());
-            ps.setString(7, req.getProvince());
-            ps.setString(8, req.getCity());
-            ps.setString(9, req.getDistrict());
-            ps.setString(10, req.getAddressDetail());
-            ps.setBigDecimal(11, oil);
-            ps.setBigDecimal(12, comm);
+            ps.setBigDecimal(7, lon);
+            ps.setBigDecimal(8, lat);
+            ps.setString(9, req.getProvince());
+            ps.setString(10, req.getCity());
+            ps.setString(11, req.getDistrict());
+            ps.setString(12, req.getAddressDetail());
+            ps.setBigDecimal(13, oil);
+            ps.setBigDecimal(14, comm);
+            ps.setString(15, req.getRemark());
+            ps.setString(16, img);
+            if (req.getLinkedMerchantId() == null) {
+                ps.setObject(17, null);
+            } else {
+                ps.setLong(17, req.getLinkedMerchantId());
+            }
             return ps;
         }, kh);
         Number key = kh.getKey();
@@ -140,6 +162,17 @@ public class AppBizDataService {
                 agentId);
         if (n == null || n == 0) {
             throw new IllegalArgumentException("业务员不属于当前代理");
+        }
+    }
+
+    private void ensureLinkedMerchant(long linkedMerchantId, long agentId) {
+        Integer n = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM biz_env_merchant WHERE merchant_id = ? AND agent_id = ? AND del_flag = '0'",
+                Integer.class,
+                linkedMerchantId,
+                agentId);
+        if (n == null || n == 0) {
+            throw new IllegalArgumentException("关联商家不存在或不属于当前代理");
         }
     }
 
