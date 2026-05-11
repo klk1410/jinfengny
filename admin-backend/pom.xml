@@ -22,6 +22,11 @@
     </properties>
 
     <dependencies>
+        <!-- 显式固定 Logback，避免线上 fat-jar/依赖解析异常时出现 NoClassDefFoundError: ThrowableProxy -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -77,6 +82,9 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.envoil.admin.AdminBackendApplication</mainClass>
+                </configuration>
             </plugin>
         </plugins>
     </build>
