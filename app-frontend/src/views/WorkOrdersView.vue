@@ -77,16 +77,25 @@ function showReceive(row) {
   return (
     roleCode.value === "sales" &&
     (row.statusCode === "0" || row.statusCode === "1") &&
-    !row.receiveSalesmanId
+    !row.receiveSalesmanId &&
+    row.grabExpired !== true
   );
 }
 
 function showAssign(row) {
-  return (
-    (roleCode.value === "agent" || roleCode.value === "main") &&
-    (row.statusCode === "0" || row.statusCode === "1") &&
-    !row.receiveSalesmanId
-  );
+  if (!(roleCode.value === "agent" || roleCode.value === "main")) {
+    return false;
+  }
+  if (!(row.statusCode === "0" || row.statusCode === "1")) {
+    return false;
+  }
+  if (row.receiveSalesmanId) {
+    return false;
+  }
+  if (roleCode.value === "main") {
+    return true;
+  }
+  return row.grabExpired === true;
 }
 
 function showFinish(row) {
@@ -110,6 +119,10 @@ onMounted(load);
         <div class="line strong">{{ w.workOrderNo }}</div>
         <div class="line muted">订单 {{ w.orderNo || "—" }} · {{ w.merchantName }}</div>
         <div class="line">{{ w.workOrderType }} · {{ w.status }}</div>
+        <div v-if="w.acceptDeadline" class="line muted">
+          抢单截止 {{ w.acceptDeadline }}
+          <template v-if="w.grabExpired">（已结束，代理可指派）</template>
+        </div>
         <div class="line muted">接单 {{ w.receiveSalesmanName || "—" }} · {{ w.workOrderTime }}</div>
         <div class="actions">
           <button v-if="showReceive(w)" type="button" class="btn-sm" @click="onReceive(w.workOrderNo)">抢单</button>

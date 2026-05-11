@@ -5,6 +5,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
@@ -22,17 +24,25 @@ public class AppBizWorkOrderService {
 
     private final JdbcTemplate jdbcTemplate;
     private final AppOpenidBizScopeService scopeService;
+    private final AppBizStockService stockService;
+    private final AppBizAccountService accountService;
 
-    public AppBizWorkOrderService(JdbcTemplate jdbcTemplate, AppOpenidBizScopeService scopeService) {
+    public AppBizWorkOrderService(
+            JdbcTemplate jdbcTemplate,
+            AppOpenidBizScopeService scopeService,
+            AppBizStockService stockService,
+            AppBizAccountService accountService) {
         this.jdbcTemplate = jdbcTemplate;
         this.scopeService = scopeService;
+        this.stockService = stockService;
+        this.accountService = accountService;
     }
 
     public List<Map<String, Object>> listWorkOrders(String openid) {
         OpenidBizScope scope = scopeService.resolve(openid);
         StringBuilder sql = new StringBuilder()
                 .append("SELECT w.work_order_no, w.order_no, w.work_order_time, w.work_order_type, w.status, ")
-                .append("w.agent_id, w.merchant_id, w.receive_salesman_id, m.merchant_name, rs.salesman_name AS receive_salesman_name ")
+                .append("w.agent_id, w.merchant_id, w.receive_salesman_id, w.accept_deadline, m.merchant_name, rs.salesman_name AS receive_salesman_name ")
                 .append("FROM biz_env_work_order w ")
                 .append("JOIN biz_env_merchant m ON m.merchant_id = w.merchant_id AND m.del_flag = '0' ")
                 .append("LEFT JOIN biz_env_salesman rs ON rs.salesman_id = w.receive_salesman_id AND rs.del_flag = '0' ")
@@ -51,6 +61,12 @@ public class AppBizWorkOrderService {
             row.put("receiveSalesmanId", rs.getObject("receive_salesman_id") == null ? null : rs.getLong("receive_salesman_id"));
             row.put("receiveSalesmanName", rs.getString("receive_salesman_name"));
             row.put("workOrderTime", formatTs(rs.getTimestamp("work_order_time")));
+            Timestamp adl = rs.getTimestamp("accept_deadline");
+            row.put("acceptDeadline", formatTs(adl));
+            long now = System.currentTimeMillis();
+            boolean expired = adl != null && now > adl.getTime();
+            row.put("grabExpired", expired);
+            row.put("canForceAssign", expired);
             return row;
         });
     }
@@ -67,6 +83,10 @@ public class AppBizWorkOrderService {
         }
         if (!canOperateWorkOrder(scope, wo)) {
             return null;
+        }
+        Timestamp adl = (Timestamp) wo.get("accept_deadline");
+        if (adl != null && System.currentTimeMillis() > adl.getTime()) {
+            throw new IllegalArgumentException("抢单已截止，请等待代理指派");
         }
         String st = String.valueOf(wo.get("status"));
         if (!"1".equals(st) && !"0".equals(st)) {
@@ -116,6 +136,10 @@ public class AppBizWorkOrderService {
         long agentId = ((Number) wo.get("agent_id")).longValue();
         if (scope.getUserRole() == '2' && scope.getAgentId() != agentId) {
             return null;
+        }
+        Timestamp adl = (Timestamp) wo.get("accept_deadline");
+        if (scope.getUserRole() == '2' && adl != null && System.currentTimeMillis() < adl.getTime()) {
+            throw new IllegalArgumentException("抢单进行中（5 分钟内），请到期后再指派");
         }
         String st = String.valueOf(wo.get("status"));
         if (!"1".equals(st) && !"0".equals(st)) {
@@ -176,19 +200,46 @@ public class AppBizWorkOrderService {
         } else if (r != '1') {
             throw new IllegalArgumentException("无权完工");
         }
-        int n = jdbcTemplate.update(
-                "UPDATE biz_env_work_order SET status = '3', work_end_time = CURRENT_TIMESTAMP WHERE work_order_no = ? AND del_flag = '0' AND status = '2'",
-                workOrderNo);
-        if (n == 0) {
-            throw new IllegalArgumentException("完工失败");
-        }
         String orderNo = (String) wo.get("order_no");
         if (orderNo != null && !orderNo.isEmpty()) {
-            jdbcTemplate.update(
-                    "UPDATE biz_env_order SET status = '3', finish_time = CURRENT_TIMESTAMP WHERE order_no = ? AND del_flag = '0'",
+            Map<String, Object> ord = loadOrderForSettlement(orderNo);
+            if (ord == null) {
+                throw new IllegalArgumentException("关联订单不存在");
+            }
+            long agId = ((Number) ord.get("agent_id")).longValue();
+            long merId = ((Number) ord.get("merchant_id")).longValue();
+            String ot = String.valueOf(ord.get("order_type"));
+            BigDecimal buckets = ord.get("oil_bucket_count") == null
+                    ? BigDecimal.ZERO
+                    : ((BigDecimal) ord.get("oil_bucket_count")).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal pay = ord.get("amount_payable") == null
+                    ? BigDecimal.ZERO
+                    : ((BigDecimal) ord.get("amount_payable")).setScale(2, RoundingMode.HALF_UP);
+            if ("1".equals(ot)) {
+                stockService.finalizeOilDeduction(agId, orderNo, buckets);
+            }
+            accountService.recordOrderCompleted(agId, merId, orderNo, pay);
+            int ou = jdbcTemplate.update(
+                    "UPDATE biz_env_order SET status = '3', finish_time = CURRENT_TIMESTAMP WHERE order_no = ? AND del_flag = '0' AND status = '2'",
                     orderNo);
+            if (ou == 0) {
+                throw new IllegalArgumentException("订单状态已变更，无法完工");
+            }
+        }
+        int wu = jdbcTemplate.update(
+                "UPDATE biz_env_work_order SET status = '3', work_end_time = CURRENT_TIMESTAMP WHERE work_order_no = ? AND del_flag = '0' AND status = '2'",
+                workOrderNo);
+        if (wu == 0) {
+            throw new IllegalArgumentException("完工失败");
         }
         return firstMap(openid, workOrderNo);
+    }
+
+    private Map<String, Object> loadOrderForSettlement(String orderNo) {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT agent_id, merchant_id, order_type, oil_bucket_count, amount_payable FROM biz_env_order WHERE order_no = ? AND del_flag = '0'",
+                orderNo);
+        return rows.isEmpty() ? null : rows.get(0);
     }
 
     private Map<String, Object> firstMap(String openid, String workOrderNo) {
@@ -202,7 +253,7 @@ public class AppBizWorkOrderService {
 
     private Map<String, Object> loadWorkOrder(String workOrderNo) {
         return jdbcTemplate.query(
-                "SELECT work_order_no, order_no, merchant_id, agent_id, status, receive_salesman_id, work_order_type "
+                "SELECT work_order_no, order_no, merchant_id, agent_id, status, receive_salesman_id, work_order_type, accept_deadline "
                         + "FROM biz_env_work_order WHERE work_order_no = ? AND del_flag = '0'",
                 rs -> {
                     if (!rs.next()) {
@@ -216,6 +267,7 @@ public class AppBizWorkOrderService {
                     m.put("status", rs.getString("status"));
                     m.put("receive_salesman_id", rs.getObject("receive_salesman_id") == null ? null : rs.getLong("receive_salesman_id"));
                     m.put("work_order_type", rs.getString("work_order_type"));
+                    m.put("accept_deadline", rs.getTimestamp("accept_deadline"));
                     return m;
                 },
                 workOrderNo);

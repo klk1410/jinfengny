@@ -10,7 +10,9 @@ import org.springframework.stereotype.Service;
 
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class AdminBizJdbcService {
@@ -113,6 +115,63 @@ public class AdminBizJdbcService {
                 + "WHERE w.del_flag = '0' "
                 + "ORDER BY w.work_order_time DESC, w.work_order_id DESC";
         return jdbcTemplate.query(sql, WORK_ORDER_RM);
+    }
+
+    public List<Map<String, Object>> listStockInventory() {
+        String sql = ""
+                + "SELECT s.agent_id, a.agent_name, s.qty_on_hand, s.qty_reserved, "
+                + " (s.qty_on_hand - s.qty_reserved) AS qty_available "
+                + "FROM biz_env_agent_stock s "
+                + "JOIN biz_env_agent a ON a.agent_id = s.agent_id AND a.del_flag = '0' "
+                + "WHERE s.sku_code = '1' "
+                + "ORDER BY s.agent_id";
+        return jdbcTemplate.query(sql, (rs, i) -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("agentId", rs.getLong("agent_id"));
+            row.put("agentName", rs.getString("agent_name"));
+            row.put("qtyOnHand", rs.getBigDecimal("qty_on_hand").doubleValue());
+            row.put("qtyReserved", rs.getBigDecimal("qty_reserved").doubleValue());
+            row.put("qtyAvailable", rs.getBigDecimal("qty_available").doubleValue());
+            return row;
+        });
+    }
+
+    public List<Map<String, Object>> listStockFlows() {
+        String sql = ""
+                + "SELECT flow_id, agent_id, sku_code, ref_type, ref_no, flow_kind, qty, remark, create_time "
+                + "FROM biz_env_stock_flow ORDER BY flow_id DESC LIMIT 500";
+        return jdbcTemplate.query(sql, (rs, i) -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("flowId", rs.getLong("flow_id"));
+            row.put("agentId", rs.getLong("agent_id"));
+            row.put("skuCode", rs.getString("sku_code"));
+            row.put("refType", rs.getString("ref_type"));
+            row.put("refNo", rs.getString("ref_no"));
+            row.put("flowKind", rs.getString("flow_kind"));
+            row.put("qty", rs.getBigDecimal("qty").doubleValue());
+            row.put("remark", rs.getString("remark"));
+            row.put("createTime", formatTs(rs.getTimestamp("create_time")));
+            return row;
+        });
+    }
+
+    public List<Map<String, Object>> listAccountLedger() {
+        String sql = ""
+                + "SELECT ledger_id, agent_id, merchant_id, ref_type, ref_no, title, amount, direction, create_time "
+                + "FROM biz_env_account_ledger ORDER BY ledger_id DESC LIMIT 500";
+        return jdbcTemplate.query(sql, (rs, i) -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("ledgerId", rs.getLong("ledger_id"));
+            row.put("agentId", rs.getObject("agent_id") == null ? null : rs.getLong("agent_id"));
+            row.put("merchantId", rs.getObject("merchant_id") == null ? null : rs.getLong("merchant_id"));
+            row.put("refType", rs.getString("ref_type"));
+            row.put("refNo", rs.getString("ref_no"));
+            row.put("title", rs.getString("title"));
+            row.put("amount", rs.getBigDecimal("amount").doubleValue());
+            row.put("direction", rs.getString("direction"));
+            row.put("createTime", formatTs(rs.getTimestamp("create_time")));
+            return row;
+        });
     }
 
     private long count(String sql) {

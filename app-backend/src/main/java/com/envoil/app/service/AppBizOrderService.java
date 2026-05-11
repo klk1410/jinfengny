@@ -25,10 +25,15 @@ public class AppBizOrderService {
 
     private final JdbcTemplate jdbcTemplate;
     private final AppOpenidBizScopeService scopeService;
+    private final AppBizStockService stockService;
 
-    public AppBizOrderService(JdbcTemplate jdbcTemplate, AppOpenidBizScopeService scopeService) {
+    public AppBizOrderService(
+            JdbcTemplate jdbcTemplate,
+            AppOpenidBizScopeService scopeService,
+            AppBizStockService stockService) {
         this.jdbcTemplate = jdbcTemplate;
         this.scopeService = scopeService;
+        this.stockService = stockService;
     }
 
     public Map<String, Object> createOrder(OrderCreateRequest request) {
@@ -102,7 +107,7 @@ public class AppBizOrderService {
             throw new IllegalArgumentException("仅主端或代理可确认订单");
         }
         Map<String, Object> row = jdbcTemplate.query(
-                "SELECT o.order_id, o.order_no, o.status, o.agent_id, o.merchant_id, o.order_type "
+                "SELECT o.order_id, o.order_no, o.status, o.agent_id, o.merchant_id, o.order_type, o.oil_bucket_count "
                         + "FROM biz_env_order o WHERE o.order_no = ? AND o.del_flag = '0'",
                 rs -> {
                     if (!rs.next()) {
@@ -115,6 +120,7 @@ public class AppBizOrderService {
                     m.put("agent_id", rs.getLong("agent_id"));
                     m.put("merchant_id", rs.getLong("merchant_id"));
                     m.put("order_type", rs.getString("order_type"));
+                    m.put("oil_bucket_count", rs.getBigDecimal("oil_bucket_count"));
                     return m;
                 },
                 orderNo);
@@ -131,16 +137,24 @@ public class AppBizOrderService {
         long agentId = ((Number) row.get("agent_id")).longValue();
         long orderId = ((Number) row.get("order_id")).longValue();
         String orderType = String.valueOf(row.get("order_type"));
+        BigDecimal buckets = row.get("oil_bucket_count") == null
+                ? BigDecimal.ZERO
+                : ((BigDecimal) row.get("oil_bucket_count")).setScale(2, RoundingMode.HALF_UP);
+        if ("1".equals(orderType)) {
+            stockService.reserveForOilOrder(agentId, orderNo, buckets);
+        }
         String woNo = AppBizWorkOrderService.newWorkOrderNo();
+        Timestamp acceptDeadline = Timestamp.valueOf(LocalDateTime.now().plusMinutes(5));
         jdbcTemplate.update(
-                "INSERT INTO biz_env_work_order (work_order_no, order_id, order_no, merchant_id, work_order_type, status, agent_id, del_flag) "
-                        + "VALUES (?, ?, ?, ?, ?, '1', ?, '0')",
+                "INSERT INTO biz_env_work_order (work_order_no, order_id, order_no, merchant_id, work_order_type, status, agent_id, accept_deadline, assign_type, del_flag) "
+                        + "VALUES (?, ?, ?, ?, ?, '1', ?, ?, '1', '0')",
                 woNo,
                 orderId,
                 orderNo,
                 merchantId,
                 orderType,
-                agentId);
+                agentId,
+                acceptDeadline);
         int n = jdbcTemplate.update(
                 "UPDATE biz_env_order SET status = '1', work_order_no = ? WHERE order_no = ? AND del_flag = '0' AND status = '0'",
                 woNo,
@@ -167,7 +181,8 @@ public class AppBizOrderService {
     public Map<String, Object> cancelOrder(String openid, String orderNo) {
         OpenidBizScope scope = scopeService.resolve(openid);
         Map<String, Object> row = jdbcTemplate.query(
-                "SELECT o.order_no, o.status, o.agent_id, o.merchant_id, m.salesman_id, o.receive_salesman_id "
+                "SELECT o.order_no, o.status, o.agent_id, o.merchant_id, m.salesman_id, o.receive_salesman_id, "
+                        + "o.order_type, o.oil_bucket_count "
                         + "FROM biz_env_order o "
                         + "JOIN biz_env_merchant m ON m.merchant_id = o.merchant_id AND m.del_flag = '0' "
                         + "WHERE o.order_no = ? AND o.del_flag = '0'",
@@ -182,6 +197,8 @@ public class AppBizOrderService {
                     m.put("merchant_id", rs.getLong("merchant_id"));
                     m.put("salesman_id", rs.getObject("salesman_id") == null ? null : rs.getLong("salesman_id"));
                     m.put("receive_salesman_id", rs.getObject("receive_salesman_id") == null ? null : rs.getLong("receive_salesman_id"));
+                    m.put("order_type", rs.getString("order_type"));
+                    m.put("oil_bucket_count", rs.getBigDecimal("oil_bucket_count"));
                     return m;
                 },
                 orderNo);
@@ -201,6 +218,14 @@ public class AppBizOrderService {
         }
         if (ur == '4' && !"0".equals(st) && !"1".equals(st)) {
             throw new IllegalArgumentException("商家仅可在待确认或待分配阶段取消订单");
+        }
+        String orderType = String.valueOf(row.get("order_type"));
+        BigDecimal buckets = row.get("oil_bucket_count") == null
+                ? BigDecimal.ZERO
+                : ((BigDecimal) row.get("oil_bucket_count")).setScale(2, RoundingMode.HALF_UP);
+        long aid = ((Number) row.get("agent_id")).longValue();
+        if ("1".equals(orderType) && ("1".equals(st) || "2".equals(st))) {
+            stockService.rollbackReserveForOilOrder(aid, orderNo, buckets);
         }
         jdbcTemplate.update(
                 "UPDATE biz_env_work_order SET status = '4' WHERE order_no = ? AND del_flag = '0' AND status IN ('0','1','2')",

@@ -4,6 +4,9 @@ import com.envoil.app.model.OpenidBizScope;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -12,12 +15,19 @@ import java.util.Map;
 @Service
 public class AppBizDataService {
 
+    private static final SimpleDateFormat TS = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
     private final JdbcTemplate jdbcTemplate;
     private final AppOpenidBizScopeService scopeService;
+    private final AppBizStockService stockService;
 
-    public AppBizDataService(JdbcTemplate jdbcTemplate, AppOpenidBizScopeService scopeService) {
+    public AppBizDataService(
+            JdbcTemplate jdbcTemplate,
+            AppOpenidBizScopeService scopeService,
+            AppBizStockService stockService) {
         this.jdbcTemplate = jdbcTemplate;
         this.scopeService = scopeService;
+        this.stockService = stockService;
     }
 
     public List<Map<String, Object>> listMerchants(String openid) {
@@ -166,6 +176,193 @@ public class AppBizDataService {
             row.put("agentId", rs.getLong("agent_id"));
             return row;
         });
+    }
+
+    /**
+     * 库存汇总（按代理）；主端可查全部或指定 agentId。
+     */
+    public List<Map<String, Object>> listStockSummary(String openid, Long filterAgentId) {
+        OpenidBizScope s = scopeService.resolve(openid);
+        Long aid = resolveScopedAgentId(s, filterAgentId);
+        if (s.getUserRole() == '1' && aid == null) {
+            return jdbcTemplate.query(
+                    "SELECT s.agent_id, a.agent_name, s.qty_on_hand, s.qty_reserved, "
+                            + " (s.qty_on_hand - s.qty_reserved) AS qty_available "
+                            + "FROM biz_env_agent_stock s "
+                            + "JOIN biz_env_agent a ON a.agent_id = s.agent_id AND a.del_flag = '0' "
+                            + "WHERE s.sku_code = '1' ORDER BY s.agent_id",
+                    (rs, i) -> {
+                        Map<String, Object> row = new LinkedHashMap<>();
+                        row.put("agentId", rs.getLong("agent_id"));
+                        row.put("agentName", rs.getString("agent_name"));
+                        row.put("qtyOnHand", rs.getBigDecimal("qty_on_hand").doubleValue());
+                        row.put("qtyReserved", rs.getBigDecimal("qty_reserved").doubleValue());
+                        row.put("qtyAvailable", rs.getBigDecimal("qty_available").doubleValue());
+                        return row;
+                    });
+        }
+        if (aid == null) {
+            return new ArrayList<>();
+        }
+        stockService.ensureAgentRow(aid);
+        return jdbcTemplate.query(
+                "SELECT s.agent_id, a.agent_name, s.qty_on_hand, s.qty_reserved, "
+                        + " (s.qty_on_hand - s.qty_reserved) AS qty_available "
+                        + "FROM biz_env_agent_stock s "
+                        + "JOIN biz_env_agent a ON a.agent_id = s.agent_id AND a.del_flag = '0' "
+                        + "WHERE s.agent_id = ? AND s.sku_code = '1'",
+                (rs, i) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("agentId", rs.getLong("agent_id"));
+                    row.put("agentName", rs.getString("agent_name"));
+                    row.put("qtyOnHand", rs.getBigDecimal("qty_on_hand").doubleValue());
+                    row.put("qtyReserved", rs.getBigDecimal("qty_reserved").doubleValue());
+                    row.put("qtyAvailable", rs.getBigDecimal("qty_available").doubleValue());
+                    return row;
+                },
+                aid);
+    }
+
+    public List<Map<String, Object>> listStockFlows(String openid, Long filterAgentId) {
+        OpenidBizScope s = scopeService.resolve(openid);
+        Long aid = resolveScopedAgentId(s, filterAgentId);
+        if (s.getUserRole() == '1' && aid == null) {
+            return jdbcTemplate.query(
+                    "SELECT flow_id, agent_id, ref_type, ref_no, flow_kind, qty, remark, create_time "
+                            + "FROM biz_env_stock_flow ORDER BY flow_id DESC LIMIT 200",
+                    (rs, i) -> flowRow(rs));
+        }
+        if (aid == null) {
+            return new ArrayList<>();
+        }
+        return jdbcTemplate.query(
+                "SELECT flow_id, agent_id, ref_type, ref_no, flow_kind, qty, remark, create_time "
+                        + "FROM biz_env_stock_flow WHERE agent_id = ? ORDER BY flow_id DESC LIMIT 200",
+                (rs, i) -> flowRow(rs),
+                aid);
+    }
+
+    public List<Map<String, Object>> listAccountLedger(String openid, Long filterAgentId) {
+        OpenidBizScope s = scopeService.resolve(openid);
+        char r = s.getUserRole();
+        if (r == '4' && s.getMerchantId() != null) {
+            return jdbcTemplate.query(
+                    "SELECT ledger_id, agent_id, merchant_id, ref_type, ref_no, title, amount, direction, create_time "
+                            + "FROM biz_env_account_ledger WHERE merchant_id = ? ORDER BY ledger_id DESC LIMIT 200",
+                    (rs, i) -> ledgerRow(rs),
+                    s.getMerchantId());
+        }
+        Long aid = resolveScopedAgentId(s, filterAgentId);
+        if (r == '1' && aid == null) {
+            return jdbcTemplate.query(
+                    "SELECT ledger_id, agent_id, merchant_id, ref_type, ref_no, title, amount, direction, create_time "
+                            + "FROM biz_env_account_ledger ORDER BY ledger_id DESC LIMIT 200",
+                    (rs, i) -> ledgerRow(rs));
+        }
+        if (aid == null) {
+            return new ArrayList<>();
+        }
+        return jdbcTemplate.query(
+                "SELECT ledger_id, agent_id, merchant_id, ref_type, ref_no, title, amount, direction, create_time "
+                        + "FROM biz_env_account_ledger WHERE agent_id = ? ORDER BY ledger_id DESC LIMIT 200",
+                (rs, i) -> ledgerRow(rs),
+                aid);
+    }
+
+    public void inboundStock(String openid, BigDecimal qty, Long agentIdForMain, String remark) {
+        OpenidBizScope s = scopeService.resolve(openid);
+        char r = s.getUserRole();
+        if (r != '1' && r != '2') {
+            throw new IllegalArgumentException("仅主端或代理可入库");
+        }
+        long agentId;
+        if (r == '1') {
+            if (agentIdForMain == null) {
+                throw new IllegalArgumentException("主端入库请指定 agentId");
+            }
+            agentId = agentIdForMain;
+        } else {
+            if (s.getAgentId() == null) {
+                throw new IllegalArgumentException("未绑定代理");
+            }
+            agentId = s.getAgentId();
+        }
+        stockService.inboundOil(agentId, qty, remark);
+    }
+
+    private Long resolveScopedAgentId(OpenidBizScope s, Long filterAgentId) {
+        char r = s.getUserRole();
+        if (r == '1') {
+            return filterAgentId;
+        }
+        if (r == '2' || r == '3') {
+            return s.getAgentId();
+        }
+        if (r == '4') {
+            if (s.getMerchantId() == null) {
+                return null;
+            }
+            List<Long> aids = jdbcTemplate.query(
+                    "SELECT agent_id FROM biz_env_merchant WHERE merchant_id = ? AND del_flag = '0'",
+                    (rs, rowNum) -> rs.getLong("agent_id"),
+                    s.getMerchantId());
+            return aids.isEmpty() ? null : aids.get(0);
+        }
+        return null;
+    }
+
+    private static Map<String, Object> flowRow(java.sql.ResultSet rs) throws java.sql.SQLException {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("flowId", rs.getLong("flow_id"));
+        row.put("agentId", rs.getLong("agent_id"));
+        row.put("refType", rs.getString("ref_type"));
+        row.put("refNo", rs.getString("ref_no"));
+        row.put("flowKind", labelFlowKind(rs.getString("flow_kind")));
+        row.put("flowKindCode", rs.getString("flow_kind"));
+        row.put("qty", rs.getBigDecimal("qty").doubleValue());
+        row.put("remark", rs.getString("remark"));
+        row.put("createTime", formatTs(rs.getTimestamp("create_time")));
+        return row;
+    }
+
+    private static Map<String, Object> ledgerRow(java.sql.ResultSet rs) throws java.sql.SQLException {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("ledgerId", rs.getLong("ledger_id"));
+        row.put("agentId", rs.getObject("agent_id") == null ? null : rs.getLong("agent_id"));
+        row.put("merchantId", rs.getObject("merchant_id") == null ? null : rs.getLong("merchant_id"));
+        row.put("refType", rs.getString("ref_type"));
+        row.put("refNo", rs.getString("ref_no"));
+        row.put("title", rs.getString("title"));
+        row.put("amount", rs.getBigDecimal("amount").doubleValue());
+        row.put("direction", "1".equals(rs.getString("direction")) ? "收入" : "支出");
+        row.put("directionCode", rs.getString("direction"));
+        row.put("createTime", formatTs(rs.getTimestamp("create_time")));
+        return row;
+    }
+
+    private static String labelFlowKind(String code) {
+        if ("R".equals(code)) {
+            return "预扣";
+        }
+        if ("D".equals(code)) {
+            return "实扣";
+        }
+        if ("B".equals(code)) {
+            return "回滚";
+        }
+        if ("I".equals(code)) {
+            return "入库";
+        }
+        return code == null ? "" : code;
+    }
+
+    private static String formatTs(Timestamp ts) {
+        if (ts == null) {
+            return "";
+        }
+        synchronized (TS) {
+            return TS.format(ts);
+        }
     }
 
     private void appendMerchantScope(StringBuilder sql, List<Object> args, OpenidBizScope s) {
