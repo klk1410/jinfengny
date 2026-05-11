@@ -1,7 +1,7 @@
 package com.envoil.admin.controller;
 
 import com.envoil.admin.common.ApiResponse;
-import com.envoil.admin.service.AdminMockService;
+import com.envoil.admin.service.AdminBizJdbcService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,15 +13,15 @@ import java.util.Map;
 @RequestMapping("/admin/dashboard")
 public class AdminDashboardController {
 
-    private final AdminMockService adminMockService;
+    private final AdminBizJdbcService adminBizJdbcService;
 
-    public AdminDashboardController(AdminMockService adminMockService) {
-        this.adminMockService = adminMockService;
+    public AdminDashboardController(AdminBizJdbcService adminBizJdbcService) {
+        this.adminBizJdbcService = adminBizJdbcService;
     }
 
     @GetMapping("/summary")
     public ApiResponse<?> summary() {
-        return ApiResponse.ok(adminMockService.dashboard());
+        return ApiResponse.ok(adminBizJdbcService.dashboard());
     }
 
     @GetMapping("/entry")

@@ -1,7 +1,7 @@
 package com.envoil.admin.controller;
 
 import com.envoil.admin.common.ApiResponse;
-import com.envoil.admin.service.AdminMockService;
+import com.envoil.admin.service.AdminBizJdbcService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -10,14 +10,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/admin/order")
 public class AdminOrderController {
 
-    private final AdminMockService adminMockService;
+    private final AdminBizJdbcService adminBizJdbcService;
 
-    public AdminOrderController(AdminMockService adminMockService) {
-        this.adminMockService = adminMockService;
+    public AdminOrderController(AdminBizJdbcService adminBizJdbcService) {
+        this.adminBizJdbcService = adminBizJdbcService;
     }
 
     @GetMapping("/list")
     public ApiResponse<?> list() {
-        return ApiResponse.ok(adminMockService.orders());
+        return ApiResponse.ok(adminBizJdbcService.listOrders());
     }
 }
