@@ -4,6 +4,7 @@ import { requestJson } from "../api.js";
 
 const shell = inject("appShell");
 const stats = ref(null);
+const orders = ref([]);
 const err = ref("");
 const busy = ref(false);
 
@@ -12,10 +13,16 @@ async function load() {
   busy.value = true;
   try {
     const oid = encodeURIComponent(shell.loginOpenid);
-    stats.value = await requestJson(`/app-api/order/stats?openid=${oid}`);
+    const [statsRes, listRes] = await Promise.all([
+      requestJson(`/app-api/order/stats?openid=${oid}`),
+      requestJson(`/app-api/order/list?openid=${oid}`)
+    ]);
+    stats.value = statsRes;
+    orders.value = listRes || [];
   } catch (e) {
     err.value = e.message || String(e);
     stats.value = null;
+    orders.value = [];
   } finally {
     busy.value = false;
   }
@@ -59,6 +66,23 @@ onMounted(load);
         </div>
       </div>
       <div v-if="!stats" class="muted">暂无统计</div>
+    </div>
+
+    <div class="card">
+      <h3 class="sub">详细订单</h3>
+      <div v-if="!orders.length" class="muted">暂无数据</div>
+      <div v-for="(o, i) in orders" :key="i" class="item">
+        <div class="item-top">
+          <span class="no">{{ o.orderNo }}</span>
+          <span class="st">{{ o.status }}</span>
+        </div>
+        <div class="item-mid">{{ o.merchantName }} · {{ o.orderType }} · {{ o.payType }}</div>
+        <div v-if="o.workOrderNo" class="item-mid muted">工单 {{ o.workOrderNo }}</div>
+        <div class="item-bot">
+          <span>¥{{ o.amountPayable }}</span>
+          <span class="muted">{{ o.createTime }}</span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -110,6 +134,29 @@ onMounted(load);
   padding: 6px 0;
   border-top: 1px dashed #eef1f6;
   font-size: 12px;
+}
+.item {
+  border-top: 1px solid #eef1f6;
+  padding: 10px 0;
+  font-size: 12px;
+}
+.item:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+.item-top {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+}
+.item-mid,
+.item-bot {
+  margin-top: 4px;
+  color: #334155;
+}
+.item-bot {
+  display: flex;
+  justify-content: space-between;
 }
 </style>
 

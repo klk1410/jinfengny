@@ -4,6 +4,7 @@ import com.envoil.app.common.ApiResponse;
 import com.envoil.app.model.DeviceEventCreateRequest;
 import com.envoil.app.model.MerchantCreateRequest;
 import com.envoil.app.model.AccountShareCreateRequest;
+import com.envoil.app.model.AccessoryCreateRequest;
 import com.envoil.app.service.AppBizDataService;
 import com.envoil.app.service.AppDeviceEventService;
 import org.springframework.validation.annotation.Validated;
@@ -51,6 +52,17 @@ public class AppBizController {
     @GetMapping("/devices")
     public ApiResponse<?> devices(@RequestParam String openid) {
         return ApiResponse.ok(bizDataService.listDevices(openid));
+    }
+
+    @GetMapping("/accessories")
+    public ApiResponse<?> accessories(@RequestParam String openid) {
+        return ApiResponse.ok(bizDataService.listAccessories(openid));
+    }
+
+    @PostMapping("/accessories")
+    public ApiResponse<?> createAccessory(@Validated @RequestBody AccessoryCreateRequest req) {
+        bizDataService.createAccessory(req);
+        return ApiResponse.ok(null);
     }
 
     @GetMapping("/device-events")

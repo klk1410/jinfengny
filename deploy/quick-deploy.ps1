@@ -34,6 +34,12 @@ if (-not (Test-Path $EnvFile)) {
   exit 1
 }
 
+# 清空当前会话残留的部署变量，避免注释后仍沿用旧值
+$envKeys = @('DEPLOY_HOST','DEPLOY_USER','SSH_PORT','SSH_IDENTITY','REMOTE_JAR_ADMIN','REMOTE_JAR_APP','REMOTE_STATIC_ADMIN','REMOTE_STATIC_APP','REMOTE_CMD','REMOTE_RESTART_SYSTEMD_SERVICES','REMOTE_RESTART_USE_SUDO')
+foreach ($k in $envKeys) {
+  [Environment]::SetEnvironmentVariable($k, $null, 'Process')
+}
+
 # UTF-8 .env files must be read as UTF-8 (default ANSI on zh-CN breaks keys/values).
 Get-Content -LiteralPath $EnvFile -Encoding UTF8 | ForEach-Object {
   $line = if ($_) { $_.TrimStart([char]0xFEFF) } else { '' }
