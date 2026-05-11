@@ -22,6 +22,14 @@ public class ApiResponse<T> {
         return response;
     }
 
+    public static <T> ApiResponse<T> unauthorized(String message) {
+        ApiResponse<T> response = new ApiResponse<>();
+        response.setCode(401);
+        response.setMessage(message);
+        response.setData(null);
+        return response;
+    }
+
     public int getCode() {
         return code;
     }

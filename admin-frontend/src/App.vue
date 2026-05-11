@@ -1,142 +1,347 @@
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
+
+const TOKEN_KEY = "envoil_admin_token";
+
+const token = ref(localStorage.getItem(TOKEN_KEY) || "");
+const tab = ref("portal");
+const loginForm = ref({ username: "admin", password: "admin123" });
+const err = ref("");
+
+const tree = ref([]);
+const roles = ref([]);
+const subjects = ref([]);
+const permOptions = ref([]);
+
+const newGroup = ref({ title: "", sortOrder: 0 });
+const newFunc = ref({
+  groupId: null,
+  permCode: "",
+  label: "",
+  icon: "",
+  routePath: "",
+  sortOrder: 0
+});
+
+const selectedRoleId = ref(null);
+const rolePermSelection = ref([]);
+const subForm = ref({ openid: "", roleId: null });
 
 const summary = ref({});
 const merchants = ref([]);
 const orders = ref([]);
-const safePerms = ref([]);
-const shareResult = ref(null);
 
-const form = ref({
-  ownerOpenid: "agent-openid-001",
-  shareOpenid: "agent-share-openid-001",
-  grantedPerms: ["env:order:list", "env:work:finish"]
-});
+const loggedIn = computed(() => !!token.value);
 
-async function requestJson(url, options) {
-  const res = await fetch(url, options);
-  const json = await res.json();
+function authHeaders() {
+  const h = { "Content-Type": "application/json" };
+  if (token.value) {
+    h.Authorization = `Bearer ${token.value}`;
+  }
+  return h;
+}
+
+async function requestJson(url, options = {}) {
+  const res = await fetch(url, {
+    ...options,
+    headers: { ...authHeaders(), ...(options.headers || {}) }
+  });
+  const json = await res.json().catch(() => ({}));
+  if (res.status === 401 || json.code === 401) {
+    token.value = "";
+    localStorage.removeItem(TOKEN_KEY);
+    throw new Error("登录已过期，请重新登录");
+  }
   if (json.code !== 200) {
     throw new Error(json.message || "请求失败");
   }
   return json.data;
 }
 
-async function loadData() {
+async function doLogin() {
+  err.value = "";
+  try {
+    const res = await fetch("/prod-api/admin/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(loginForm.value)
+    });
+    const json = await res.json();
+    if (json.code !== 200) {
+      throw new Error(json.message || "登录失败");
+    }
+    token.value = json.data.token;
+    localStorage.setItem(TOKEN_KEY, token.value);
+    await refreshAll();
+  } catch (e) {
+    err.value = e.message;
+  }
+}
+
+function logout() {
+  token.value = "";
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+async function refreshAll() {
+  await Promise.all([loadPortalTree(), loadRoles(), loadSubjects(), loadPermOptions()]);
+}
+
+async function loadPortalTree() {
+  tree.value = await requestJson("/prod-api/admin/portal/tree");
+}
+
+async function loadRoles() {
+  roles.value = await requestJson("/prod-api/admin/mini/roles");
+  if (!selectedRoleId.value && roles.value.length) {
+    selectedRoleId.value = roles.value[0].id;
+    syncRolePerms();
+  }
+}
+
+async function loadSubjects() {
+  subjects.value = await requestJson("/prod-api/admin/mini/subjects");
+}
+
+async function loadPermOptions() {
+  permOptions.value = await requestJson("/prod-api/admin/portal/perm-options");
+}
+
+function syncRolePerms() {
+  const r = roles.value.find((x) => x.id === selectedRoleId.value);
+  rolePermSelection.value = r ? [...r.permCodes] : [];
+}
+
+async function saveRolePerms() {
+  await requestJson(`/prod-api/admin/mini/roles/${selectedRoleId.value}/perms`, {
+    method: "PUT",
+    body: JSON.stringify({ permCodes: rolePermSelection.value })
+  });
+  await loadRoles();
+  syncRolePerms();
+  alert("已保存角色门户权限");
+}
+
+async function createGroup() {
+  await requestJson("/prod-api/admin/portal/groups", {
+    method: "POST",
+    body: JSON.stringify(newGroup.value)
+  });
+  newGroup.value = { title: "", sortOrder: 0 };
+  await loadPortalTree();
+}
+
+async function delGroup(id) {
+  if (!confirm("删除分组及其下门户项？")) return;
+  await requestJson(`/prod-api/admin/portal/groups/${id}`, { method: "DELETE" });
+  await loadPortalTree();
+}
+
+async function createFunc() {
+  await requestJson("/prod-api/admin/portal/functions", {
+    method: "POST",
+    body: JSON.stringify(newFunc.value)
+  });
+  newFunc.value.permCode = "";
+  newFunc.value.label = "";
+  newFunc.value.icon = "";
+  newFunc.value.routePath = "";
+  await loadPortalTree();
+  await loadPermOptions();
+}
+
+async function delFunc(id) {
+  if (!confirm("删除该功能（将移除各角色中对应权限码）？")) return;
+  await requestJson(`/prod-api/admin/portal/functions/${id}`, { method: "DELETE" });
+  await loadPortalTree();
+  await loadPermOptions();
+  await loadRoles();
+  syncRolePerms();
+}
+
+async function saveSubject() {
+  await requestJson("/prod-api/admin/mini/subjects", {
+    method: "PUT",
+    body: JSON.stringify(subForm.value)
+  });
+  subForm.value = { openid: "", roleId: null };
+  await loadSubjects();
+}
+
+async function delSubject(openid) {
+  if (!confirm("删除 openid 绑定？")) return;
+  await requestJson(`/prod-api/admin/mini/subjects/${encodeURIComponent(openid)}`, {
+    method: "DELETE"
+  });
+  await loadSubjects();
+}
+
+async function loadDashboard() {
   summary.value = await requestJson("/prod-api/admin/dashboard/summary");
   merchants.value = await requestJson("/prod-api/admin/merchant/list");
   orders.value = await requestJson("/prod-api/admin/order/list");
-  const shareTemplate = await requestJson("/prod-api/admin/permission/share-template");
-  safePerms.value = shareTemplate.safePerms || [];
-}
-
-async function submitSharePerms() {
-  shareResult.value = null;
-  const data = await requestJson("/prod-api/admin/permission/share-grant", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(form.value)
-  });
-  shareResult.value = data;
 }
 
 onMounted(() => {
-  loadData().catch((err) => {
-    alert(err.message);
-  });
+  if (loggedIn.value) {
+    refreshAll().catch((e) => alert(e.message));
+  }
 });
 </script>
 
 <template>
   <div class="page">
-    <h1>环保油管理后台（首版）</h1>
-
-    <section class="card">
-      <h2>看板</h2>
-      <div class="kpi-grid">
-        <div class="kpi">代理: {{ summary.agentCount || 0 }}</div>
-        <div class="kpi">业务员: {{ summary.salesmanCount || 0 }}</div>
-        <div class="kpi">商家: {{ summary.merchantCount || 0 }}</div>
-        <div class="kpi">待确认订单: {{ summary.orderPendingCount || 0 }}</div>
-        <div class="kpi">待处理工单: {{ summary.workPendingCount || 0 }}</div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>共享子权限授权（白名单）</h2>
-      <p class="muted">仅允许授权安全权限，不允许删除/强制指派/授权等高风险权限。</p>
+    <div v-if="!loggedIn" class="card login-card">
+      <h1>环保油管理后台</h1>
+      <p class="muted">默认账号：admin / admin123（首次启动自动创建）</p>
       <div class="form-row">
-        <label>主账号 openid</label>
-        <input v-model="form.ownerOpenid" />
+        <label>用户名</label>
+        <input v-model="loginForm.username" />
       </div>
       <div class="form-row">
-        <label>共享账号 openid</label>
-        <input v-model="form.shareOpenid" />
+        <label>密码</label>
+        <input v-model="loginForm.password" type="password" />
       </div>
-      <div class="form-row">
-        <label>授权权限（逗号分隔）</label>
-        <textarea
-          :value="form.grantedPerms.join(',')"
-          @input="form.grantedPerms = $event.target.value.split(',').map(v => v.trim()).filter(Boolean)"
-          rows="3"
-        />
-      </div>
-      <button class="btn" @click="submitSharePerms">保存共享权限</button>
-      <p class="muted">安全权限模板：{{ safePerms.join(" , ") }}</p>
-      <pre v-if="shareResult">{{ JSON.stringify(shareResult, null, 2) }}</pre>
-    </section>
+      <p v-if="err" class="err">{{ err }}</p>
+      <button class="btn" @click="doLogin">登录</button>
+    </div>
 
-    <section class="card">
-      <h2>商家列表（示例）</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>商家</th>
-            <th>联系人</th>
-            <th>电话</th>
-            <th>代理</th>
-            <th>业务员</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in merchants" :key="item.merchantId">
-            <td>{{ item.merchantId }}</td>
-            <td>{{ item.merchantName }}</td>
-            <td>{{ item.contactName }}</td>
-            <td>{{ item.contactPhone }}</td>
-            <td>{{ item.agentName }}</td>
-            <td>{{ item.salesmanName }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
+    <template v-else>
+      <header class="topbar">
+        <h1>环保油管理后台</h1>
+        <button class="btn ghost" @click="logout">退出</button>
+      </header>
 
-    <section class="card">
-      <h2>订单列表（示例）</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>订单号</th>
-            <th>商家</th>
-            <th>类型</th>
-            <th>状态</th>
-            <th>支付方式</th>
-            <th>金额</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in orders" :key="item.orderNo">
-            <td>{{ item.orderNo }}</td>
-            <td>{{ item.merchantName }}</td>
-            <td>{{ item.orderType }}</td>
-            <td>{{ item.status }}</td>
-            <td>{{ item.payType }}</td>
-            <td>{{ item.amountPayable }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
+      <nav class="tabs">
+        <button :class="{ active: tab === 'portal' }" @click="tab = 'portal'">九宫格配置</button>
+        <button :class="{ active: tab === 'role' }" @click="tab = 'role'">角色权限</button>
+        <button :class="{ active: tab === 'sub' }" @click="tab = 'sub'">openid 绑定</button>
+        <button :class="{ active: tab === 'dash' }" @click="tab = 'dash'; loadDashboard().catch((e) => alert(e.message))">
+          看板 Mock
+        </button>
+      </nav>
+
+      <section v-show="tab === 'portal'" class="card">
+        <h2>分组与功能项</h2>
+        <p class="muted">图标可用 emoji 或静态资源 URL；routePath 为小程序/H5 路径。</p>
+        <div class="inline-form">
+          <input v-model="newGroup.title" placeholder="新分组标题" />
+          <input v-model.number="newGroup.sortOrder" type="number" placeholder="排序" class="w-sm" />
+          <button class="btn" @click="createGroup">添加分组</button>
+        </div>
+        <div class="inline-form">
+          <select v-model.number="newFunc.groupId" class="w-md">
+            <option disabled :value="null">选择分组</option>
+            <option v-for="g in tree" :key="g.id" :value="g.id">{{ g.title }}</option>
+          </select>
+          <input v-model="newFunc.permCode" placeholder="permCode 唯一" />
+          <input v-model="newFunc.label" placeholder="显示名称" />
+          <input v-model="newFunc.icon" placeholder="图标" />
+          <input v-model="newFunc.routePath" placeholder="路由" />
+          <input v-model.number="newFunc.sortOrder" type="number" placeholder="排序" class="w-sm" />
+          <button class="btn" @click="createFunc">添加功能</button>
+        </div>
+
+        <div v-for="g in tree" :key="g.id" class="group-block">
+          <div class="group-head">
+            <strong>{{ g.title }}</strong>
+            <span class="muted">sort={{ g.sortOrder }} id={{ g.id }}</span>
+            <button class="text-btn danger" @click="delGroup(g.id)">删分组</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>名称</th>
+                <th>perm</th>
+                <th>图标</th>
+                <th>路由</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="f in g.functions" :key="f.id">
+                <td>{{ f.label }}</td>
+                <td class="mono">{{ f.permCode }}</td>
+                <td>{{ f.icon }}</td>
+                <td class="mono">{{ f.routePath }}</td>
+                <td><button class="text-btn danger" @click="delFunc(f.id)">删</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section v-show="tab === 'role'" class="card">
+        <h2>角色门户权限</h2>
+        <div class="inline-form">
+          <label>角色</label>
+          <select v-model.number="selectedRoleId" @change="syncRolePerms">
+            <option v-for="r in roles" :key="r.id" :value="r.id">{{ r.roleName }} ({{ r.roleCode }})</option>
+          </select>
+          <button class="btn" @click="saveRolePerms">保存勾选</button>
+        </div>
+        <div class="perm-grid">
+          <label v-for="p in permOptions" :key="p" class="perm-item">
+            <input type="checkbox" v-model="rolePermSelection" :value="p" />
+            <span class="mono">{{ p }}</span>
+          </label>
+        </div>
+      </section>
+
+      <section v-show="tab === 'sub'" class="card">
+        <h2>小程序 openid → 角色</h2>
+        <p class="muted">未绑定时按 openid 关键字推断（与首版 mock 一致），绑定后优先生效。</p>
+        <div class="inline-form">
+          <input v-model="subForm.openid" placeholder="openid" />
+          <select v-model.number="subForm.roleId" class="w-md">
+            <option disabled :value="null">选择角色</option>
+            <option v-for="r in roles" :key="r.id" :value="r.id">{{ r.roleName }}</option>
+          </select>
+          <button class="btn" @click="saveSubject">保存绑定</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>openid</th>
+              <th>角色</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in subjects" :key="s.openid">
+              <td class="mono">{{ s.openid }}</td>
+              <td>{{ s.roleName }}</td>
+              <td><button class="text-btn danger" @click="delSubject(s.openid)">删</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section v-show="tab === 'dash'" class="card">
+        <h2>看板 Mock</h2>
+        <div class="kpi-grid">
+          <div class="kpi">代理: {{ summary.agentCount || 0 }}</div>
+          <div class="kpi">业务员: {{ summary.salesmanCount || 0 }}</div>
+          <div class="kpi">商家: {{ summary.merchantCount || 0 }}</div>
+          <div class="kpi">待确认订单: {{ summary.orderPendingCount || 0 }}</div>
+        </div>
+        <h3>商家</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>名称</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in merchants" :key="item.merchantId">
+              <td>{{ item.merchantId }}</td>
+              <td>{{ item.merchantName }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </template>
   </div>
 </template>
 
@@ -149,8 +354,32 @@ onMounted(() => {
   color: #222;
 }
 
-h1 {
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
   margin-bottom: 16px;
+}
+
+.tabs button {
+  border: 1px solid #d0d8e8;
+  background: #f5f8ff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.tabs button.active {
+  background: #2376ff;
+  color: #fff;
+  border-color: #2376ff;
 }
 
 .card {
@@ -161,18 +390,8 @@ h1 {
   margin-bottom: 16px;
 }
 
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(120px, 1fr));
-  gap: 12px;
-}
-
-.kpi {
-  background: #f5f8ff;
-  border: 1px solid #d6e2ff;
-  border-radius: 6px;
-  padding: 12px;
-  text-align: center;
+.login-card {
+  max-width: 420px;
 }
 
 .form-row {
@@ -183,6 +402,7 @@ h1 {
 }
 
 input,
+select,
 textarea {
   border: 1px solid #cfcfcf;
   border-radius: 6px;
@@ -199,9 +419,49 @@ textarea {
   cursor: pointer;
 }
 
+.btn.ghost {
+  background: transparent;
+  color: #2376ff;
+  border: 1px solid #2376ff;
+}
+
 .muted {
   font-size: 12px;
   color: #666;
+}
+
+.err {
+  color: #c0392b;
+  font-size: 13px;
+}
+
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.w-sm {
+  width: 88px;
+}
+.w-md {
+  min-width: 160px;
+}
+
+.group-block {
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 12px;
+}
+
+.group-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
 table {
@@ -217,11 +477,50 @@ td {
   font-size: 13px;
 }
 
-pre {
-  margin-top: 10px;
-  background: #f7f7f7;
-  border-radius: 6px;
-  padding: 10px;
+.mono {
+  font-family: Consolas, monospace;
   font-size: 12px;
+}
+
+.perm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.perm-item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.text-btn {
+  border: none;
+  background: transparent;
+  color: #2376ff;
+  cursor: pointer;
+}
+
+.text-btn.danger {
+  color: #c0392b;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.kpi {
+  background: #f5f8ff;
+  border: 1px solid #d6e2ff;
+  border-radius: 6px;
+  padding: 12px;
+  text-align: center;
+}
+
+h2 {
+  margin-top: 0;
 }
 </style>

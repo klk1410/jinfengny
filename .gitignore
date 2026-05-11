@@ -6,3 +6,6 @@
 **/.npm-cache/
 .idea/
 .vscode/
+
+# 本地部署目标（复制 deploy.env.example 为 deploy/deploy.env）
+deploy/deploy.env

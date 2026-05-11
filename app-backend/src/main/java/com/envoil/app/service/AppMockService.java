@@ -36,21 +36,6 @@ public class AppMockService {
         return userResult(openid, "未授权", false, Arrays.asList("账号信息", "账号操作"));
     }
 
-    public Map<String, Object> portalModules(String openid) {
-        Map<String, Object> loginResult = loginByOpenid(openid);
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("openid", openid);
-        data.put("role", loginResult.get("role"));
-        data.put("hasBusinessAccess", loginResult.get("hasBusinessAccess"));
-        data.put("modules", loginResult.get("modules"));
-        data.put("gridEntries", Arrays.asList(
-                "下单", "订单查询", "工单查询",
-                "设备查询", "账目流水", "收益统计",
-                "商家信息", "业务员信息", "通知中心"
-        ));
-        return data;
-    }
-
     public Map<String, Object> createOrder(OrderCreateRequest request) {
         BigDecimal amount = BigDecimal.valueOf(request.getUnitPrice())
                 .multiply(BigDecimal.valueOf(request.getBucketCount()))

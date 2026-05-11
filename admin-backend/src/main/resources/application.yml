@@ -6,7 +6,19 @@ server:
 spring:
   application:
     name: eco-oil-admin-backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:mem:envoil;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.h2.Driver}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
 
+# 与 app-backend 必须使用同一库；生产请配置同一 MySQL。
 app:
   cors:
     allowed-origins: "*"
+  jwt:
+    secret: ${APP_JWT_SECRET:envoil-dev-secret-key-must-be-32bytes!!}
+    expire-minutes: ${APP_JWT_EXPIRE_MINUTES:10080}
