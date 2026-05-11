@@ -101,6 +101,82 @@ public class AppBizOrderService {
         });
     }
 
+    /** 订单统计（按当前角色的数据范围） */
+    public Map<String, Object> orderStats(String openid) {
+        OpenidBizScope scope = scopeService.resolve(openid);
+        StringBuilder baseSql = new StringBuilder()
+                .append("FROM biz_env_order o ")
+                .append("JOIN biz_env_merchant m ON m.merchant_id = o.merchant_id AND m.del_flag = '0' ")
+                .append("WHERE o.del_flag = '0' ");
+        List<Object> args = new ArrayList<>();
+        appendOrderScope(baseSql, args, scope);
+
+        Map<String, Object> summary = jdbcTemplate.query(
+                "SELECT COUNT(*) AS cnt, COALESCE(SUM(o.amount_payable),0) AS amt " + baseSql,
+                rs -> {
+                    if (!rs.next()) {
+                        return new LinkedHashMap<>();
+                    }
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("orderCount", rs.getLong("cnt"));
+                    m.put("amountTotal", rs.getBigDecimal("amt").doubleValue());
+                    return m;
+                },
+                args.toArray());
+        if (summary == null || summary.isEmpty()) {
+            summary = new LinkedHashMap<>();
+            summary.put("orderCount", 0L);
+            summary.put("amountTotal", 0D);
+        }
+        summary.put("roleCode", roleCode(scope.getUserRole()));
+        summary.put("roleName", roleName(scope.getUserRole()));
+
+        List<Map<String, Object>> byStatus = jdbcTemplate.query(
+                "SELECT o.status AS st, COUNT(*) AS cnt, COALESCE(SUM(o.amount_payable),0) AS amt "
+                        + baseSql + " GROUP BY o.status ORDER BY o.status",
+                (rs, i) -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("statusCode", rs.getString("st"));
+                    m.put("status", labelOrderStatus(rs.getString("st")));
+                    m.put("orderCount", rs.getLong("cnt"));
+                    m.put("amountTotal", rs.getBigDecimal("amt").doubleValue());
+                    return m;
+                },
+                args.toArray());
+        summary.put("byStatus", byStatus);
+
+        char role = scope.getUserRole();
+        if (role == '2' || role == '3') {
+            List<Map<String, Object>> byMerchant = jdbcTemplate.query(
+                    "SELECT m.merchant_id AS mid, m.merchant_name AS mname, COUNT(*) AS cnt, COALESCE(SUM(o.amount_payable),0) AS amt "
+                            + baseSql + " GROUP BY m.merchant_id, m.merchant_name ORDER BY cnt DESC, m.merchant_id",
+                    (rs, i) -> {
+                        Map<String, Object> m = new LinkedHashMap<>();
+                        m.put("merchantId", rs.getLong("mid"));
+                        m.put("merchantName", rs.getString("mname"));
+                        m.put("orderCount", rs.getLong("cnt"));
+                        m.put("amountTotal", rs.getBigDecimal("amt").doubleValue());
+                        return m;
+                    },
+                    args.toArray());
+            summary.put("byMerchant", byMerchant);
+        } else if (role == '1') {
+            List<Map<String, Object>> byAgent = jdbcTemplate.query(
+                    "SELECT o.agent_id AS aid, COUNT(*) AS cnt, COALESCE(SUM(o.amount_payable),0) AS amt "
+                            + baseSql + " GROUP BY o.agent_id ORDER BY cnt DESC, o.agent_id",
+                    (rs, i) -> {
+                        Map<String, Object> m = new LinkedHashMap<>();
+                        m.put("agentId", rs.getLong("aid"));
+                        m.put("orderCount", rs.getLong("cnt"));
+                        m.put("amountTotal", rs.getBigDecimal("amt").doubleValue());
+                        return m;
+                    },
+                    args.toArray());
+            summary.put("byAgent", byAgent);
+        }
+        return summary;
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> confirmOrder(String openid, String orderNo) {
         OpenidBizScope scope = scopeService.resolve(openid);
@@ -391,6 +467,22 @@ public class AppBizOrderService {
             return "赊欠";
         }
         return code == null ? "" : code;
+    }
+
+    private static String roleName(char code) {
+        if (code == '1') return "主端";
+        if (code == '2') return "代理";
+        if (code == '3') return "业务员";
+        if (code == '4') return "商家";
+        return String.valueOf(code);
+    }
+
+    private static String roleCode(char code) {
+        if (code == '1') return "main";
+        if (code == '2') return "agent";
+        if (code == '3') return "sales";
+        if (code == '4') return "merchant";
+        return String.valueOf(code);
     }
 
     private static String formatTs(Timestamp ts) {

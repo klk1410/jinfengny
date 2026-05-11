@@ -34,6 +34,11 @@ public class OrderController {
         return ApiResponse.ok(appBizOrderService.listOrders(openid));
     }
 
+    @GetMapping("/stats")
+    public ApiResponse<?> stats(@RequestParam String openid) {
+        return ApiResponse.ok(appBizOrderService.orderStats(openid));
+    }
+
     @PostMapping("/confirm/{orderNo}")
     public ApiResponse<?> confirm(@PathVariable String orderNo, @RequestParam String openid) {
         Map<String, Object> data = appBizOrderService.confirmOrder(openid, orderNo);

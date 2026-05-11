@@ -5,6 +5,7 @@ import { requestJson } from "../api.js";
 const shell = inject("appShell");
 const roleCode = computed(() => shell.portal?.roleCode ?? "");
 const rows = ref([]);
+const stats = ref(null);
 const err = ref("");
 const busy = ref(false);
 
@@ -21,10 +22,17 @@ async function load() {
   busy.value = true;
   try {
     const oid = shell.loginOpenid;
-    rows.value = await requestJson(`/app-api/order/list?openid=${encodeURIComponent(oid)}`);
+    const q = encodeURIComponent(oid);
+    const [listRes, statRes] = await Promise.all([
+      requestJson(`/app-api/order/list?openid=${q}`),
+      requestJson(`/app-api/order/stats?openid=${q}`)
+    ]);
+    rows.value = listRes;
+    stats.value = statRes;
   } catch (e) {
     err.value = e.message || String(e);
     rows.value = [];
+    stats.value = null;
   } finally {
     busy.value = false;
   }
@@ -148,6 +156,36 @@ onMounted(() => {
     </div>
 
     <div class="card">
+      <h3 class="sub">订单统计</h3>
+      <div v-if="stats" class="stats-top">
+        <div class="kpi">角色：{{ stats.roleName }}</div>
+        <div class="kpi">订单数：{{ stats.orderCount }}</div>
+        <div class="kpi">金额：¥{{ stats.amountTotal }}</div>
+      </div>
+      <div v-if="stats?.byStatus?.length" class="stats-block">
+        <div class="stats-title">按状态</div>
+        <div v-for="(s, i) in stats.byStatus" :key="`st-${i}`" class="stats-row">
+          <span>{{ s.status }}</span>
+          <span>{{ s.orderCount }} 单 · ¥{{ s.amountTotal }}</span>
+        </div>
+      </div>
+      <div v-if="stats?.byMerchant?.length" class="stats-block">
+        <div class="stats-title">按商户</div>
+        <div v-for="(m, i) in stats.byMerchant" :key="`m-${i}`" class="stats-row">
+          <span>{{ m.merchantName }}</span>
+          <span>{{ m.orderCount }} 单 · ¥{{ m.amountTotal }}</span>
+        </div>
+      </div>
+      <div v-if="stats?.byAgent?.length" class="stats-block">
+        <div class="stats-title">按代理</div>
+        <div v-for="(a, i) in stats.byAgent" :key="`a-${i}`" class="stats-row">
+          <span>代理 #{{ a.agentId }}</span>
+          <span>{{ a.orderCount }} 单 · ¥{{ a.amountTotal }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
       <h3 class="sub">列表</h3>
       <div v-if="!rows.length" class="muted">暂无数据</div>
       <div v-for="(o, i) in rows" :key="i" class="item">
@@ -254,6 +292,34 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+.stats-top {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.kpi {
+  background: #f5f8ff;
+  border: 1px solid #dbe7ff;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 12px;
+  color: #1e3a8a;
+}
+.stats-block {
+  margin-top: 10px;
+}
+.stats-title {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+.stats-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-top: 1px dashed #eef1f6;
+  font-size: 12px;
 }
 .link {
   border: none;
