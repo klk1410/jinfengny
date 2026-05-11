@@ -8,7 +8,7 @@
 Requires: JDK+Maven, Node+npm, OpenSSH (ssh/scp).
 
   远程 JAR 重启（上传完成后）任选其一配置在 deploy.env：
-  - REMOTE_CMD=...                    任意 shell，如 systemctl / 脚本路径
+REMOTE_CMD=systemctl restart jinfeng-admin && systemctl restart jinfeng-app                 
   - REMOTE_RESTART_SYSTEMD_SERVICES=  逗号分隔服务名，自动拼成 restart（可选 REMOTE_RESTART_USE_SUDO=1）
   跳过远程钩子：加参数 -SkipRemoteAfter
 #>

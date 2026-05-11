@@ -305,9 +305,10 @@ onMounted(() => {
           <button class="btn" @click="saveRolePerms">保存勾选</button>
         </div>
         <div class="perm-grid">
-          <label v-for="p in permOptions" :key="p" class="perm-item">
-            <input type="checkbox" v-model="rolePermSelection" :value="p" />
-            <span class="mono">{{ p }}</span>
+          <label v-for="p in permOptions" :key="p.permCode" class="perm-item">
+            <input type="checkbox" v-model="rolePermSelection" :value="p.permCode" />
+            <span class="perm-cn">{{ p.groupTitle }} · {{ p.label }}</span>
+            <span class="mono perm-code">{{ p.permCode }}</span>
           </label>
         </div>
       </section>
@@ -517,6 +518,19 @@ td {
   display: flex;
   gap: 6px;
   align-items: center;
+}
+
+.perm-cn {
+  flex: 1;
+  font-size: 13px;
+  color: #222;
+  line-height: 1.35;
+}
+
+.perm-code {
+  color: #64748b;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .text-btn {

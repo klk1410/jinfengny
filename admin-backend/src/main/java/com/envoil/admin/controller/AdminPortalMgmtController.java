@@ -87,7 +87,7 @@ public class AdminPortalMgmtController {
     }
 
     @GetMapping("/perm-options")
-    public ApiResponse<List<String>> permOptions() {
-        return ApiResponse.ok(portalJdbcService.allActivePermCodes());
+    public ApiResponse<List<Map<String, Object>>> permOptions() {
+        return ApiResponse.ok(portalJdbcService.allActivePermOptions());
     }
 }

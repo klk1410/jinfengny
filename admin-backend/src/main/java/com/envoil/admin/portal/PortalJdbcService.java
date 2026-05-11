@@ -184,6 +184,26 @@ public class PortalJdbcService {
                 (rs, i) -> rs.getString(1));
     }
 
+    /** 当前库中可用的权限选项（带中文名称），用于角色权限勾选 */
+    public List<Map<String, Object>> allActivePermOptions() {
+        return jdbc.query(
+                "SELECT f.perm_code AS permCode, f.label AS label, g.title AS groupTitle "
+                        + "FROM env_portal_function f "
+                        + "JOIN env_portal_func_group g ON g.group_id = f.group_id "
+                        + "WHERE f.del_flag = '0' AND f.status='0' AND g.del_flag='0' "
+                        + "ORDER BY g.sort_order, g.group_id, f.sort_order, f.func_id",
+                (rs, i) -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    String code = rs.getString("permCode");
+                    String label = rs.getString("label");
+                    String groupTitle = rs.getString("groupTitle");
+                    m.put("permCode", code);
+                    m.put("label", (label == null || label.trim().isEmpty()) ? code : label);
+                    m.put("groupTitle", groupTitle == null ? "" : groupTitle);
+                    return m;
+                });
+    }
+
     /** 删除功能并移除各角色对该 perm_code 的授权 */
     public void softDeleteFunction(long funcId) {
         List<String> codes = jdbc.query(
