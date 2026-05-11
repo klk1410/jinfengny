@@ -173,8 +173,19 @@ if ($SkipRemoteAfter) {
   $sshArgs = @('-p', $sshPort, '-o', 'StrictHostKeyChecking=accept-new')
   if ($identity) { $sshArgs += @('-i', $identity) }
   $sshArgs += @($DeployHost, $effectiveRemoteCmd)
+  Write-Host ">>> remote cmd: $effectiveRemoteCmd" -ForegroundColor DarkGray
   ssh @sshArgs
-  if ($LASTEXITCODE -ne 0) { throw 'remote command failed' }
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host '>>> remote command failed, collecting diagnostics...' -ForegroundColor Yellow
+    $sshDiag = @('-p', $sshPort, '-o', 'StrictHostKeyChecking=accept-new')
+    if ($identity) { $sshDiag += @('-i', $identity) }
+    $diagCmd = "sh -lc 'echo ""---- ps java ----""; ps -ef | grep -E ""java|admin-backend.jar|app-backend.jar"" | grep -v grep || true; " +
+      "echo ""---- admin-backend.out ----""; tail -n 120 /www/wwwroot/jinfeng-admin/admin-backend.out || true; " +
+      "echo ""---- app-backend.out ----""; tail -n 120 /www/wwwroot/jinfeng-app/app-backend.out || true'"
+    $sshDiag += @($DeployHost, $diagCmd)
+    ssh @sshDiag
+    throw 'remote command failed'
+  }
 } else {
   Write-Host '>>> no remote restart configured (set REMOTE_CMD or REMOTE_RESTART_SYSTEMD_SERVICES)' -ForegroundColor Yellow
 }
