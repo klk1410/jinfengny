@@ -8,9 +8,17 @@ const err = ref("");
 const agentFilter = ref("");
 const roleCode = computed(() => shell.portal?.roleCode ?? "");
 const isMain = computed(() => roleCode.value === "main");
+const ledgerForbidden = computed(
+  () => roleCode.value === "merchant" || roleCode.value === "sales"
+);
 
 async function load() {
   err.value = "";
+  if (ledgerForbidden.value) {
+    rows.value = [];
+    err.value = "";
+    return;
+  }
   try {
     const oid = shell.loginOpenid;
     let url = `/app-api/biz/account/ledger?openid=${encodeURIComponent(oid)}`;
@@ -33,6 +41,9 @@ onMounted(load);
     <h2 class="page-title">账目流水</h2>
     <p v-if="err" class="err">{{ err }}</p>
 
+    <div v-if="ledgerForbidden" class="card warn">当前账号无权查看账目流水（仅主端与代理可查看）。</div>
+
+    <template v-else>
     <div v-if="isMain" class="card filter">
       <label class="lbl">按代理 ID 筛选</label>
       <input v-model="agentFilter" class="inp" type="text" placeholder="留空看全部" />
@@ -49,6 +60,7 @@ onMounted(load);
         <div class="line muted">{{ r.createTime }} · {{ r.refType }} {{ r.refNo || "" }}</div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -60,6 +72,12 @@ onMounted(load);
 }
 .err {
   color: #b91c1c;
+  font-size: 13px;
+}
+.warn {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
   font-size: 13px;
 }
 .card {

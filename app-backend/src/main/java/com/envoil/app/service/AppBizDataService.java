@@ -1,11 +1,15 @@
 package com.envoil.app.service;
 
+import com.envoil.app.model.MerchantCreateRequest;
 import com.envoil.app.model.OpenidBizScope;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.sql.PreparedStatement;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -57,6 +61,86 @@ public class AppBizDataService {
             row.put("status", labelMerchantStatus(rs.getString("status")));
             return row;
         });
+    }
+
+    /**
+     * 主端、代理、业务员可新增店铺（商家端无此权限）。
+     */
+    public Map<String, Object> createMerchant(MerchantCreateRequest req) {
+        OpenidBizScope s = scopeService.resolve(req.getOpenid());
+        char r = s.getUserRole();
+        long agentId;
+        Long salesmanId = req.getSalesmanId();
+        if (r == '1') {
+            if (req.getAgentId() == null) {
+                throw new IllegalArgumentException("主端创建店铺请指定 agentId");
+            }
+            agentId = req.getAgentId();
+        } else if (r == '2') {
+            if (s.getAgentId() == null) {
+                throw new IllegalArgumentException("未绑定代理");
+            }
+            agentId = s.getAgentId();
+        } else if (r == '3') {
+            if (s.getAgentId() == null) {
+                throw new IllegalArgumentException("未绑定代理");
+            }
+            agentId = s.getAgentId();
+            if (salesmanId == null) {
+                salesmanId = s.getSalesmanId();
+            }
+        } else {
+            throw new IllegalArgumentException("无权限新增店铺");
+        }
+        if (salesmanId != null) {
+            ensureSalesmanBelongsToAgent(salesmanId, agentId);
+        }
+        final Long insertSalesmanId = salesmanId;
+        BigDecimal oil = BigDecimal.valueOf(req.getOilUnitPrice() == null ? 0 : req.getOilUnitPrice());
+        BigDecimal comm = BigDecimal.valueOf(req.getMerchantCommission() == null ? 0 : req.getMerchantCommission());
+        GeneratedKeyHolder kh = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO biz_env_merchant (agent_id, salesman_id, industry_type, merchant_name, contact_name, contact_phone, "
+                            + "province, city, district, address_detail, oil_unit_price, merchant_commission, status, del_flag) "
+                            + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'0','0')",
+                    Statement.RETURN_GENERATED_KEYS);
+            ps.setLong(1, agentId);
+            if (insertSalesmanId == null) {
+                ps.setObject(2, null);
+            } else {
+                ps.setLong(2, insertSalesmanId);
+            }
+            ps.setString(3, req.getIndustryType());
+            ps.setString(4, req.getMerchantName());
+            ps.setString(5, req.getContactName());
+            ps.setString(6, req.getContactPhone());
+            ps.setString(7, req.getProvince());
+            ps.setString(8, req.getCity());
+            ps.setString(9, req.getDistrict());
+            ps.setString(10, req.getAddressDetail());
+            ps.setBigDecimal(11, oil);
+            ps.setBigDecimal(12, comm);
+            return ps;
+        }, kh);
+        Number key = kh.getKey();
+        if (key == null) {
+            throw new IllegalStateException("未能获取新店铺 ID");
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("merchantId", key.longValue());
+        return out;
+    }
+
+    private void ensureSalesmanBelongsToAgent(long salesmanId, long agentId) {
+        Integer n = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM biz_env_salesman WHERE salesman_id = ? AND agent_id = ? AND del_flag = '0'",
+                Integer.class,
+                salesmanId,
+                agentId);
+        if (n == null || n == 0) {
+            throw new IllegalArgumentException("业务员不属于当前代理");
+        }
     }
 
     public List<Map<String, Object>> listAgents(String openid) {
@@ -246,12 +330,9 @@ public class AppBizDataService {
     public List<Map<String, Object>> listAccountLedger(String openid, Long filterAgentId) {
         OpenidBizScope s = scopeService.resolve(openid);
         char r = s.getUserRole();
-        if (r == '4' && s.getMerchantId() != null) {
-            return jdbcTemplate.query(
-                    "SELECT ledger_id, agent_id, merchant_id, ref_type, ref_no, title, amount, direction, create_time "
-                            + "FROM biz_env_account_ledger WHERE merchant_id = ? ORDER BY ledger_id DESC LIMIT 200",
-                    (rs, i) -> ledgerRow(rs),
-                    s.getMerchantId());
+        // 账目流水仅主端、代理可查；业务员与商家不可见
+        if (r == '3' || r == '4') {
+            return new ArrayList<>();
         }
         Long aid = resolveScopedAgentId(s, filterAgentId);
         if (r == '1' && aid == null) {

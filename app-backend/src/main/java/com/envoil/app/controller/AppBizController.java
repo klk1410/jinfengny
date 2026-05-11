@@ -1,9 +1,12 @@
 package com.envoil.app.controller;
 
 import com.envoil.app.common.ApiResponse;
+import com.envoil.app.model.MerchantCreateRequest;
 import com.envoil.app.service.AppBizDataService;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,6 +26,11 @@ public class AppBizController {
     @GetMapping("/merchants")
     public ApiResponse<?> merchants(@RequestParam String openid) {
         return ApiResponse.ok(bizDataService.listMerchants(openid));
+    }
+
+    @PostMapping("/merchants")
+    public ApiResponse<?> createMerchant(@Validated @RequestBody MerchantCreateRequest req) {
+        return ApiResponse.ok(bizDataService.createMerchant(req));
     }
 
     @GetMapping("/agents")
