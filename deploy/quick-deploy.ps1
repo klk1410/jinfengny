@@ -28,18 +28,24 @@ if (-not (Test-Path $EnvFile)) {
   exit 1
 }
 
-Get-Content $EnvFile | ForEach-Object {
-  if ($_ -match '^\s*#' -or $_ -match '^\s*$') { return }
-  $pair = $_ -split '=', 2
+# UTF-8 .env files must be read as UTF-8 (default ANSI on zh-CN breaks keys/values).
+Get-Content -LiteralPath $EnvFile -Encoding UTF8 | ForEach-Object {
+  $line = if ($_) { $_.TrimStart([char]0xFEFF) } else { '' }
+  if ($line -match '^\s*#' -or $line -match '^\s*$') { return }
+  $pair = $line -split '=', 2
   if ($pair.Length -eq 2) {
     $k = $pair[0].Trim()
     $v = $pair[1].Trim()
-    [Environment]::SetEnvironmentVariable($k, $v, "Process")
+    if ($k.Length -gt 0) {
+      [Environment]::SetEnvironmentVariable($k, $v, 'Process')
+    }
   }
 }
 
-$hostSpec = $env:DEPLOY_HOST
-if (-not $hostSpec) { throw 'deploy.env: set DEPLOY_HOST (e.g. root@1.2.3.4)' }
+$DeployHost = $env:DEPLOY_HOST
+if (-not $DeployHost) {
+  throw 'deploy.env missing DEPLOY_HOST (use UTF-8 file; see deploy.env.example)'
+}
 $sshPort = if ($env:SSH_PORT) { $env:SSH_PORT } else { '22' }
 $identity = $env:SSH_IDENTITY
 
@@ -122,10 +128,10 @@ if (-not $SkipBackend) {
   $dirApp = Split-Path $remoteJarApp -Parent
   $sshPrep = @('-p', $sshPort, '-o', 'StrictHostKeyChecking=accept-new')
   if ($identity) { $sshPrep += @('-i', $identity) }
-  ssh @sshPrep $hostSpec "mkdir -p '$dirAdmin' '$dirApp'"
+  ssh @sshPrep $DeployHost "mkdir -p '$dirAdmin' '$dirApp'"
   Write-Host '>>> scp jars' -ForegroundColor Cyan
-  Invoke-Scp ($base + @($adminJar, "${hostSpec}:$remoteJarAdmin"))
-  Invoke-Scp ($base + @($appJar, "${hostSpec}:$remoteJarApp"))
+  Invoke-Scp ($base + @($adminJar, "${DeployHost}:$remoteJarAdmin"))
+  Invoke-Scp ($base + @($appJar, "${DeployHost}:$remoteJarApp"))
 }
 
 if (-not $SkipFrontend) {
@@ -134,20 +140,20 @@ if (-not $SkipFrontend) {
   Write-Host '>>> mkdir remote static dirs' -ForegroundColor Cyan
   $sshMk = @('-p', $sshPort, '-o', 'StrictHostKeyChecking=accept-new')
   if ($identity) { $sshMk += @('-i', $identity) }
-  $sshMk += @($hostSpec, "mkdir -p '$remoteStaticAdmin' '$remoteStaticApp'")
+  $sshMk += @($DeployHost, "mkdir -p '$remoteStaticAdmin' '$remoteStaticApp'")
   ssh @sshMk
   if ($LASTEXITCODE -ne 0) { throw 'ssh mkdir failed' }
 
   Write-Host '>>> scp static (recursive)' -ForegroundColor Cyan
-  Invoke-Scp ($base + @('-r', "${adminDist}/.", "${hostSpec}:$remoteStaticAdmin/"))
-  Invoke-Scp ($base + @('-r', "${appDist}/.", "${hostSpec}:$remoteStaticApp/"))
+  Invoke-Scp ($base + @('-r', "${adminDist}/.", "${DeployHost}:$remoteStaticAdmin/"))
+  Invoke-Scp ($base + @('-r', "${appDist}/.", "${DeployHost}:$remoteStaticApp/"))
 }
 
 if ($remoteCmd) {
   Write-Host '>>> ssh remote command' -ForegroundColor Cyan
   $sshArgs = @('-p', $sshPort, '-o', 'StrictHostKeyChecking=accept-new')
   if ($identity) { $sshArgs += @('-i', $identity) }
-  $sshArgs += @($hostSpec, $remoteCmd)
+  $sshArgs += @($DeployHost, $remoteCmd)
   ssh @sshArgs
   if ($LASTEXITCODE -ne 0) { throw 'remote command failed' }
 }
