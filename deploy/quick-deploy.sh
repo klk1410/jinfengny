@@ -76,6 +76,9 @@ ADMIN_DIST="$ROOT/admin-frontend/dist-admin"
 APP_DIST="$ROOT/app-frontend/dist-app"
 
 if [[ "$SKIP_BACK" -eq 0 ]]; then
+  ADIR="$(dirname "$REMOTE_JAR_ADMIN")"
+  PDIR="$(dirname "$REMOTE_JAR_APP")"
+  ssh "${SSH_ARGS[@]}" "$DEPLOY_HOST" "mkdir -p '$ADIR' '$PDIR'"
   scp "${SCP_ARGS[@]}" "$ROOT/admin-backend/target/admin-backend.jar" "$DEPLOY_HOST:$REMOTE_JAR_ADMIN"
   scp "${SCP_ARGS[@]}" "$ROOT/app-backend/target/app-backend.jar" "$DEPLOY_HOST:$REMOTE_JAR_APP"
 fi
