@@ -7,22 +7,27 @@ const shell = inject("appShell");
 const err = ref("");
 const base = ref({});
 const org = ref({});
+const sharedOpenid = ref("");
+const shares = ref([]);
 
 async function load() {
   err.value = "";
   try {
     const oid = shell.loginOpenid;
     const data = await requestJson(`/app-api/biz/account/profile?openid=${encodeURIComponent(oid)}`);
+    const shareRows = await requestJson(`/app-api/biz/account/shares?openid=${encodeURIComponent(oid)}`);
     base.value = {
       roleName: data.roleName || "",
       openid: data.openid || "",
       bindTime: data.bindTime || ""
     };
     org.value = data.orgInfo || {};
+    shares.value = shareRows || [];
   } catch (e) {
     err.value = e.message || String(e);
     base.value = {};
     org.value = {};
+    shares.value = [];
   }
 }
 
@@ -33,6 +38,44 @@ function copyOpenid() {
     () => window.alert("openid 已复制"),
     () => window.alert("复制失败，请手工复制")
   );
+}
+
+async function addShare() {
+  err.value = "";
+  try {
+    const target = sharedOpenid.value.trim();
+    if (!target) {
+      throw new Error("请填写共享账号 openid");
+    }
+    await requestJson("/app-api/biz/account/shares", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        openid: shell.loginOpenid,
+        sharedOpenid: target
+      })
+    });
+    sharedOpenid.value = "";
+    await load();
+  } catch (e) {
+    err.value = e.message || String(e);
+  }
+}
+
+async function removeShare(target) {
+  if (!window.confirm(`移除共享账号 ${target}？`)) return;
+  err.value = "";
+  try {
+    const q = new URLSearchParams();
+    q.set("openid", shell.loginOpenid);
+    q.set("sharedOpenid", target);
+    await requestJson(`/app-api/biz/account/shares/remove?${q.toString()}`, {
+      method: "POST"
+    });
+    await load();
+  } catch (e) {
+    err.value = e.message || String(e);
+  }
 }
 
 watch(() => shell.loginOpenid, load);
@@ -88,6 +131,34 @@ onMounted(load);
         <div class="pf-item"><div class="pf-line-strong">平台管理员信息</div><div class="pf-line-muted">{{ org.adminName || "平台管理员" }}</div></div>
         <div class="pf-item"><div class="pf-line-strong">平台名称</div><div class="pf-line-muted">{{ org.platformName || "环保油平台" }}</div></div>
       </template>
+    </div>
+
+    <div class="pf-panel">
+      <h3 class="pf-panel-title">共享账号</h3>
+      <div class="pf-item">
+        <div class="pf-line-strong">新增共享 openid</div>
+        <div class="pf-line-muted" style="display: flex; gap: 8px; margin-top: 8px">
+          <input
+            v-model="sharedOpenid"
+            type="text"
+            placeholder="请输入对方 openid"
+            style="flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #d0d7e2"
+          />
+          <button type="button" class="pf-tool" @click="addShare">添加</button>
+        </div>
+      </div>
+      <div class="pf-item">
+        <div class="pf-line-strong">已共享账号</div>
+        <div v-if="!shares.length" class="pf-line-muted">暂无</div>
+        <div v-for="s in shares" :key="s.shareId" class="pf-line-muted" style="margin-top: 8px">
+          <div style="display: flex; justify-content: space-between; gap: 8px; align-items: center">
+            <div style="word-break: break-all">
+              {{ s.sharedOpenid }} · {{ s.roleName }} · {{ s.createTime }}
+            </div>
+            <button type="button" class="pf-tool pf-tool--ghost" @click="removeShare(s.sharedOpenid)">移除</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>

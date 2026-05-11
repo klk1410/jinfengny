@@ -461,6 +461,76 @@ public class AppBizDataService {
         return out;
     }
 
+    public List<Map<String, Object>> listAccountShares(String openid) {
+        OpenidBizScope s = scopeService.resolve(openid);
+        return jdbcTemplate.query(
+                "SELECT share_id, shared_openid, user_role, agent_id, merchant_id, salesman_id, create_time "
+                        + "FROM biz_env_account_share WHERE owner_openid = ? AND del_flag = '0' ORDER BY share_id DESC",
+                (rs, i) -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("shareId", rs.getLong("share_id"));
+                    m.put("sharedOpenid", rs.getString("shared_openid"));
+                    String role = rs.getString("user_role");
+                    m.put("roleCode", role);
+                    m.put("roleName", roleName(role == null || role.isEmpty() ? s.getUserRole() : role.charAt(0)));
+                    m.put("agentId", rs.getObject("agent_id") == null ? null : rs.getLong("agent_id"));
+                    m.put("merchantId", rs.getObject("merchant_id") == null ? null : rs.getLong("merchant_id"));
+                    m.put("salesmanId", rs.getObject("salesman_id") == null ? null : rs.getLong("salesman_id"));
+                    m.put("createTime", formatTs(rs.getTimestamp("create_time")));
+                    return m;
+                },
+                openid);
+    }
+
+    public void addAccountShare(String openid, String sharedOpenid) {
+        OpenidBizScope s = scopeService.resolve(openid);
+        String target = sharedOpenid == null ? "" : sharedOpenid.trim();
+        if (target.isEmpty()) {
+            throw new IllegalArgumentException("共享 openid 不能为空");
+        }
+        if (openid.equals(target)) {
+            throw new IllegalArgumentException("不能共享给自己");
+        }
+        jdbcTemplate.update(
+                "UPDATE biz_env_account_share SET del_flag = '2' WHERE owner_openid = ? AND shared_openid = ?",
+                openid, target);
+        jdbcTemplate.update(
+                "INSERT INTO biz_env_account_share (owner_openid, shared_openid, user_role, agent_id, merchant_id, salesman_id, status, del_flag) "
+                        + "VALUES (?,?,?,?,?,?, '0', '0')",
+                openid,
+                target,
+                String.valueOf(s.getUserRole()),
+                s.getAgentId(),
+                s.getMerchantId(),
+                s.getSalesmanId());
+
+        // 共享账号沿用主账号数据范围 + 门户角色
+        jdbcTemplate.update("DELETE FROM env_openid_biz_scope WHERE openid = ?", target);
+        jdbcTemplate.update(
+                "INSERT INTO env_openid_biz_scope (openid, user_role, agent_id, merchant_id, salesman_id) VALUES (?,?,?,?,?)",
+                target,
+                String.valueOf(s.getUserRole()),
+                s.getAgentId(),
+                s.getMerchantId(),
+                s.getSalesmanId());
+
+        long roleId = roleIdByUserRole(s.getUserRole());
+        jdbcTemplate.update("DELETE FROM env_mini_subject WHERE openid = ?", target);
+        jdbcTemplate.update("INSERT INTO env_mini_subject (openid, role_id) VALUES (?,?)", target, roleId);
+    }
+
+    public void removeAccountShare(String openid, String sharedOpenid) {
+        String target = sharedOpenid == null ? "" : sharedOpenid.trim();
+        if (target.isEmpty()) {
+            throw new IllegalArgumentException("sharedOpenid不能为空");
+        }
+        jdbcTemplate.update(
+                "UPDATE biz_env_account_share SET del_flag = '2' WHERE owner_openid = ? AND shared_openid = ? AND del_flag = '0'",
+                openid, target);
+        jdbcTemplate.update("DELETE FROM env_openid_biz_scope WHERE openid = ?", target);
+        jdbcTemplate.update("DELETE FROM env_mini_subject WHERE openid = ?", target);
+    }
+
     public void inboundStock(String openid, BigDecimal qty, Long agentIdForMain, String remark) {
         OpenidBizScope s = scopeService.resolve(openid);
         char r = s.getUserRole();
@@ -567,6 +637,14 @@ public class AppBizDataService {
 
     private static String nullSafe(String v) {
         return v == null ? "" : v;
+    }
+
+    private static long roleIdByUserRole(char code) {
+        if (code == '1') return 1L;
+        if (code == '2') return 2L;
+        if (code == '3') return 3L;
+        if (code == '4') return 4L;
+        return 1L;
     }
 
     private void appendMerchantScope(StringBuilder sql, List<Object> args, OpenidBizScope s) {

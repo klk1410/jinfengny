@@ -3,6 +3,7 @@ package com.envoil.app.controller;
 import com.envoil.app.common.ApiResponse;
 import com.envoil.app.model.DeviceEventCreateRequest;
 import com.envoil.app.model.MerchantCreateRequest;
+import com.envoil.app.model.AccountShareCreateRequest;
 import com.envoil.app.service.AppBizDataService;
 import com.envoil.app.service.AppDeviceEventService;
 import org.springframework.validation.annotation.Validated;
@@ -91,5 +92,22 @@ public class AppBizController {
     @GetMapping("/account/profile")
     public ApiResponse<?> accountProfile(@RequestParam String openid) {
         return ApiResponse.ok(bizDataService.accountProfile(openid));
+    }
+
+    @GetMapping("/account/shares")
+    public ApiResponse<?> accountShares(@RequestParam String openid) {
+        return ApiResponse.ok(bizDataService.listAccountShares(openid));
+    }
+
+    @PostMapping("/account/shares")
+    public ApiResponse<?> addAccountShare(@Validated @RequestBody AccountShareCreateRequest req) {
+        bizDataService.addAccountShare(req.getOpenid(), req.getSharedOpenid());
+        return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/account/shares/remove")
+    public ApiResponse<?> removeAccountShare(@RequestParam String openid, @RequestParam String sharedOpenid) {
+        bizDataService.removeAccountShare(openid, sharedOpenid);
+        return ApiResponse.ok(null);
     }
 }
