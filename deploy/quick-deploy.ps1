@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Optional git commit, Maven jars, npm builds, scp to server.
+  Optional git commit, Maven clean package (jars), npm builds, scp to server.
 .USAGE
   Copy deploy\deploy.env.example to deploy\deploy.env, then from repo root:
     .\deploy\quick-deploy.ps1
@@ -92,13 +92,13 @@ if (-not $SkipCommit) {
 }
 
 if (-not $SkipBackend) {
-  Write-Host '>>> Maven admin-backend' -ForegroundColor Cyan
+  Write-Host '>>> Maven admin-backend (clean package)' -ForegroundColor Cyan
   Push-Location (Join-Path $RepoRoot 'admin-backend')
-  mvn -q package -DskipTests
+  mvn -q clean package -DskipTests
   Pop-Location
-  Write-Host '>>> Maven app-backend' -ForegroundColor Cyan
+  Write-Host '>>> Maven app-backend (clean package)' -ForegroundColor Cyan
   Push-Location (Join-Path $RepoRoot 'app-backend')
-  mvn -q package -DskipTests
+  mvn -q clean package -DskipTests
   Pop-Location
 }
 

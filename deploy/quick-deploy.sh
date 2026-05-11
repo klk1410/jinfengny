@@ -63,8 +63,10 @@ if [[ "$SKIP_COMMIT" -eq 0 ]]; then
 fi
 
 if [[ "$SKIP_BACK" -eq 0 ]]; then
-  (cd "$ROOT/admin-backend" && mvn -q package -DskipTests)
-  (cd "$ROOT/app-backend" && mvn -q package -DskipTests)
+  echo ">>> Maven admin-backend (clean package)"
+  (cd "$ROOT/admin-backend" && mvn -q clean package -DskipTests)
+  echo ">>> Maven app-backend (clean package)"
+  (cd "$ROOT/app-backend" && mvn -q clean package -DskipTests)
 fi
 
 if [[ "$SKIP_FRONT" -eq 0 ]]; then

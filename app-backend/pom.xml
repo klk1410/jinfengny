@@ -56,6 +56,15 @@
 
     <build>
         <finalName>app-backend</finalName>
+        <!-- 已改为 Java 迁移 V7，若 target/资源里残留旧 SQL 会同版本冲突，明确不再打包该文件 -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <excludes>
+                    <exclude>**/V7__stock_timeout_account.sql</exclude>
+                </excludes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
