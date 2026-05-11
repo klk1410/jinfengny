@@ -1,6 +1,7 @@
 package com.envoil.app.service;
 
 import com.envoil.app.model.OpenidBizScope;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -24,7 +25,7 @@ public class AppBizDataService {
     public AppBizDataService(
             JdbcTemplate jdbcTemplate,
             AppOpenidBizScopeService scopeService,
-            AppBizStockService stockService) {
+            @Lazy AppBizStockService stockService) {
         this.jdbcTemplate = jdbcTemplate;
         this.scopeService = scopeService;
         this.stockService = stockService;

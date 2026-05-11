@@ -2,6 +2,7 @@ package com.envoil.app.service;
 
 import com.envoil.app.model.OpenidBizScope;
 import com.envoil.app.model.OrderCreateRequest;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +31,7 @@ public class AppBizOrderService {
     public AppBizOrderService(
             JdbcTemplate jdbcTemplate,
             AppOpenidBizScopeService scopeService,
-            AppBizStockService stockService) {
+            @Lazy AppBizStockService stockService) {
         this.jdbcTemplate = jdbcTemplate;
         this.scopeService = scopeService;
         this.stockService = stockService;
