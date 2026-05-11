@@ -73,9 +73,9 @@ function Invoke-Scp {
 }
 
 function Build-ScpBaseArgs {
-  $args = @("-P", $sshPort, "-o", "StrictHostKeyChecking=accept-new")
-  if ($identity) { $args += @("-i", $identity) }
-  return $args
+  $scpOpts = @("-P", $sshPort, "-o", "StrictHostKeyChecking=accept-new")
+  if ($identity) { $scpOpts += @("-i", $identity) }
+  return $scpOpts
 }
 
 # --- 1) Git commit ---
@@ -97,11 +97,11 @@ if (-not $SkipCommit) {
 
 # --- 2) Backend ---
 if (-not $SkipBackend) {
-  Write-Host ">>> Maven admin-backend" -ForegroundColor Cyan
+  Write-Host '>>> Maven admin-backend' -ForegroundColor Cyan
   Push-Location (Join-Path $RepoRoot "admin-backend")
   mvn -q package -DskipTests
   Pop-Location
-  Write-Host ">>> Maven app-backend" -ForegroundColor Cyan
+  Write-Host '>>> Maven app-backend' -ForegroundColor Cyan
   Push-Location (Join-Path $RepoRoot "app-backend")
   mvn -q package -DskipTests
   Pop-Location
@@ -111,12 +111,12 @@ if (-not $SkipBackend) {
 $adminDist = Join-Path $RepoRoot "admin-frontend\dist-admin"
 $appDist = Join-Path $RepoRoot "app-frontend\dist-app"
 if (-not $SkipFrontend) {
-  Write-Host ">>> npm admin-frontend" -ForegroundColor Cyan
+  Write-Host '>>> npm admin-frontend' -ForegroundColor Cyan
   Push-Location (Join-Path $RepoRoot "admin-frontend")
   npm install --cache .npm-cache
   npm run build
   Pop-Location
-  Write-Host ">>> npm app-frontend" -ForegroundColor Cyan
+  Write-Host '>>> npm app-frontend' -ForegroundColor Cyan
   Push-Location (Join-Path $RepoRoot "app-frontend")
   npm install --cache .npm-cache
   npm run build
@@ -130,13 +130,13 @@ if (-not $SkipBackend) {
   $appJar = Join-Path $RepoRoot "app-backend\target\app-backend.jar"
   if (-not (Test-Path $adminJar)) { throw "找不到 $adminJar" }
   if (-not (Test-Path $appJar)) { throw "找不到 $appJar" }
-  Write-Host ">>> 确保远端 JAR 父目录存在" -ForegroundColor Cyan
+  Write-Host '>>> 确保远端 JAR 父目录存在' -ForegroundColor Cyan
   $dirAdmin = Split-Path $remoteJarAdmin -Parent
   $dirApp = Split-Path $remoteJarApp -Parent
   $sshPrep = @("-p", $sshPort, "-o", "StrictHostKeyChecking=accept-new")
   if ($identity) { $sshPrep += @("-i", $identity) }
   ssh @sshPrep $hostSpec "mkdir -p '$dirAdmin' '$dirApp'"
-  Write-Host ">>> 上传 JAR" -ForegroundColor Cyan
+  Write-Host '>>> 上传 JAR' -ForegroundColor Cyan
   Invoke-Scp ($base + @($adminJar, "${hostSpec}:$remoteJarAdmin"))
   Invoke-Scp ($base + @($appJar, "${hostSpec}:$remoteJarApp"))
 }
@@ -144,21 +144,21 @@ if (-not $SkipBackend) {
 if (-not $SkipFrontend) {
   if (-not (Test-Path $adminDist)) { throw "找不到 $adminDist，请先构建 admin-frontend" }
   if (-not (Test-Path $appDist)) { throw "找不到 $appDist，请先构建 app-frontend" }
-  Write-Host ">>> 确保远端静态目录存在" -ForegroundColor Cyan
+  Write-Host '>>> 确保远端静态目录存在' -ForegroundColor Cyan
   $sshMk = @("-p", $sshPort, "-o", "StrictHostKeyChecking=accept-new")
   if ($identity) { $sshMk += @("-i", $identity) }
   $sshMk += @($hostSpec, "mkdir -p '$remoteStaticAdmin' '$remoteStaticApp'")
   ssh @sshMk
   if ($LASTEXITCODE -ne 0) { throw "ssh mkdir 失败" }
 
-  Write-Host ">>> 上传静态资源 (递归覆盖)" -ForegroundColor Cyan
+  Write-Host '>>> 上传静态资源 (递归覆盖)' -ForegroundColor Cyan
   # 使用 /. 同步目录内容，避免多套一层 dist 目录名
   Invoke-Scp ($base + @("-r", "${adminDist}/.", "${hostSpec}:$remoteStaticAdmin/"))
   Invoke-Scp ($base + @("-r", "${appDist}/.", "${hostSpec}:$remoteStaticApp/"))
 }
 
 if ($remoteCmd) {
-  Write-Host ">>> SSH 执行远端命令" -ForegroundColor Cyan
+  Write-Host '>>> SSH 执行远端命令' -ForegroundColor Cyan
   $sshArgs = @("-p", $sshPort, "-o", "StrictHostKeyChecking=accept-new")
   if ($identity) { $sshArgs += @("-i", $identity) }
   $sshArgs += @($hostSpec, $remoteCmd)
@@ -167,7 +167,7 @@ if ($remoteCmd) {
 }
 
 if ($GitPush) {
-  Write-Host ">>> git push" -ForegroundColor Cyan
+  Write-Host '>>> git push' -ForegroundColor Cyan
   git push
   if ($LASTEXITCODE -ne 0) { Write-Host "git push 失败（可稍后手动推送）。" -ForegroundColor Yellow }
 }
