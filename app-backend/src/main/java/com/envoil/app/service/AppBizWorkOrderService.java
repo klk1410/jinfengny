@@ -71,6 +71,7 @@ public class AppBizWorkOrderService {
             row.put("workOrderType", labelWorkType(rs.getString("work_order_type")));
             row.put("status", labelWorkStatus(rs.getString("status")));
             row.put("statusCode", rs.getString("status"));
+            row.put("agentId", rs.getLong("agent_id"));
             row.put("receiveSalesmanId", rs.getObject("receive_salesman_id") == null ? null : rs.getLong("receive_salesman_id"));
             row.put("receiveSalesmanName", rs.getString("receive_salesman_name"));
             row.put("workOrderTime", formatTs(rs.getTimestamp("work_order_time")));

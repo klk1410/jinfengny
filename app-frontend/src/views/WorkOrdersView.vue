@@ -16,6 +16,32 @@ const finishDeviceNo = ref("");
 const finishLines = ref([]);
 const finishBusy = ref(false);
 
+const assignOpen = ref(false);
+const assignBusy = ref(false);
+const assignWoNo = ref("");
+const assignRow = ref(null);
+const assignSalesmenRaw = ref([]);
+const assignSalesmanId = ref("");
+
+function assignSalesmenForRow(list, wo) {
+  const active = (list || []).filter((s) => s.statusCode === "0");
+  if (roleCode.value === "main" && wo?.agentId != null) {
+    const aid = Number(wo.agentId);
+    return active.filter((s) => Number(s.agentId) === aid);
+  }
+  return active;
+}
+
+const assignSalesmenOptions = computed(() => assignSalesmenForRow(assignSalesmenRaw.value, assignRow.value));
+
+function assignOptionLabel(s) {
+  const base = `${s.salesmanName} · ${s.phone || "无电话"}`;
+  if (roleCode.value === "main") {
+    return `${base}（代理 #${s.agentId}）`;
+  }
+  return base;
+}
+
 async function load() {
   err.value = "";
   try {
@@ -41,26 +67,58 @@ async function onReceive(no) {
   }
 }
 
-async function onAssign(no) {
-  const raw = window.prompt("指派业务员 ID（数字）", "1");
-  if (raw == null || raw === "") {
-    return;
+async function openAssignDialog(w) {
+  err.value = "";
+  assignRow.value = w;
+  assignWoNo.value = w.workOrderNo;
+  assignSalesmanId.value = "";
+  assignBusy.value = true;
+  assignOpen.value = true;
+  assignSalesmenRaw.value = [];
+  try {
+    const oid = encodeURIComponent(shell.loginOpenid);
+    assignSalesmenRaw.value = (await requestJson(`/app-api/biz/salesmen?openid=${oid}`)) || [];
+    const opts = assignSalesmenForRow(assignSalesmenRaw.value, w);
+    if (opts.length === 1) {
+      assignSalesmanId.value = String(opts[0].salesmanId);
+    }
+  } catch (e) {
+    err.value = e.message || String(e);
+    assignOpen.value = false;
+    assignRow.value = null;
+  } finally {
+    assignBusy.value = false;
   }
-  const sid = Number(raw);
+}
+
+function closeAssignDialog() {
+  assignOpen.value = false;
+  assignWoNo.value = "";
+  assignRow.value = null;
+  assignSalesmenRaw.value = [];
+  assignSalesmanId.value = "";
+}
+
+async function submitAssign() {
+  const sid = Number(assignSalesmanId.value);
   if (!Number.isFinite(sid) || sid <= 0) {
-    err.value = "业务员 ID 无效";
+    err.value = "请选择业务员";
     return;
   }
   err.value = "";
+  assignBusy.value = true;
   try {
     const oid = shell.loginOpenid;
     await requestJson(
-      `/app-api/work-order/${encodeURIComponent(no)}/assign?openid=${encodeURIComponent(oid)}&salesmanId=${encodeURIComponent(String(sid))}`,
+      `/app-api/work-order/${encodeURIComponent(assignWoNo.value)}/assign?openid=${encodeURIComponent(oid)}&salesmanId=${encodeURIComponent(String(sid))}`,
       { method: "POST" }
     );
+    closeAssignDialog();
     await load();
   } catch (e) {
     err.value = e.message || String(e);
+  } finally {
+    assignBusy.value = false;
   }
 }
 
@@ -244,7 +302,7 @@ onMounted(load);
         <div class="line muted">接单 {{ w.receiveSalesmanName || "—" }} · {{ w.workOrderTime }}</div>
         <div class="actions">
           <button v-if="showReceive(w)" type="button" class="btn-sm" @click="onReceive(w.workOrderNo)">抢单</button>
-          <button v-if="showAssign(w)" type="button" class="btn-sm secondary" @click="onAssign(w.workOrderNo)">指派</button>
+          <button v-if="showAssign(w)" type="button" class="btn-sm secondary" @click="openAssignDialog(w)">指派</button>
           <button
             v-if="showFinish(w) && roleCode === 'sales'"
             type="button"
@@ -255,6 +313,43 @@ onMounted(load);
           </button>
           <button v-if="showFinish(w) && roleCode !== 'sales'" type="button" class="btn-sm ok" @click="onFinishAgentMain(w.workOrderNo)">
             完工
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="assignOpen" class="mask mask--assign" @click.self="closeAssignDialog">
+      <div class="dialog">
+        <h3 class="dlg-title">指派业务员</h3>
+        <p v-if="assignRow" class="dlg-hint">
+          工单 {{ assignRow.workOrderNo }} · {{ assignRow.merchantName }}
+          <template v-if="roleCode === 'main' && assignRow.agentId != null"> · 代理 #{{ assignRow.agentId }}</template>
+        </p>
+        <p v-if="assignBusy" class="muted">加载中…</p>
+        <template v-else>
+          <label class="dlg-lab" for="assign-sales-select">选择业务员</label>
+          <select
+            id="assign-sales-select"
+            v-model="assignSalesmanId"
+            class="dlg-select"
+            :disabled="!assignSalesmenOptions.length"
+          >
+            <option disabled value="">请选择</option>
+            <option v-for="s in assignSalesmenOptions" :key="s.salesmanId" :value="String(s.salesmanId)">
+              {{ assignOptionLabel(s) }}
+            </option>
+          </select>
+          <p v-if="!assignSalesmenOptions.length" class="dlg-warn">暂无可指派的在职业务员，请先在业务员管理中维护。</p>
+        </template>
+        <div class="dlg-actions">
+          <button type="button" class="btn-sm secondary" :disabled="assignBusy" @click="closeAssignDialog">取消</button>
+          <button
+            type="button"
+            class="btn-sm ok"
+            :disabled="assignBusy || !assignSalesmenOptions.length || !assignSalesmanId"
+            @click="submitAssign"
+          >
+            确认指派
           </button>
         </div>
       </div>
@@ -447,5 +542,25 @@ onMounted(load);
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+.mask--assign {
+  z-index: 55;
+}
+.dlg-select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d0d7e2;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #0f172a;
+  background: #fff;
+  margin-bottom: 8px;
+}
+.dlg-warn {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #b45309;
+  line-height: 1.45;
 }
 </style>
