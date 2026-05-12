@@ -1,10 +1,12 @@
 <script setup>
-import { inject, onMounted, ref, watch } from "vue";
+import { computed, inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../api.js";
 
 const shell = inject("appShell");
 const rows = ref([]);
 const err = ref("");
+const roleCode = computed(() => shell.portal?.roleCode ?? "");
+const showNewLink = computed(() => roleCode.value === "main");
 
 async function load() {
   err.value = "";
@@ -24,6 +26,9 @@ onMounted(load);
 <template>
   <div class="page">
     <h2 class="page-title">代理</h2>
+    <p v-if="showNewLink" class="subnav">
+      <router-link class="subnav-link" :to="{ name: 'agent-new' }">新增代理</router-link>
+    </p>
     <p v-if="err" class="err">{{ err }}</p>
     <div class="card">
       <div v-if="!rows.length" class="muted">暂无数据</div>
@@ -41,6 +46,17 @@ onMounted(load);
   margin: 0 0 10px;
   font-size: 16px;
   font-weight: 600;
+}
+.subnav {
+  margin: -4px 0 10px;
+  font-size: 13px;
+}
+.subnav-link {
+  color: #2563eb;
+  text-decoration: none;
+}
+.subnav-link:hover {
+  text-decoration: underline;
 }
 .err {
   color: #b91c1c;

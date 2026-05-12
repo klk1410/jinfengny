@@ -22,6 +22,11 @@ public class DeviceEventCreateRequest {
     private Long merchantId;
     private String remark;
 
+    /**
+     * 事件为新增（A）时必填：inbound 入库（在库，无商家）；merchant 商家新增（须指定 merchantId）。
+     */
+    private String addMode;
+
     public String getOpenid() {
         return openid;
     }
@@ -68,5 +73,13 @@ public class DeviceEventCreateRequest {
 
     public void setRemark(String remark) {
         this.remark = remark;
+    }
+
+    public String getAddMode() {
+        return addMode;
+    }
+
+    public void setAddMode(String addMode) {
+        this.addMode = addMode;
     }
 }

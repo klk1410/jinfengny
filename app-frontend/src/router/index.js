@@ -20,7 +20,19 @@ export const router = createRouter({
         { path: "order/stats", name: "order-stats", meta: { headerTitle: "订单统计" }, component: () => import("../views/OrderStatsView.vue") },
         { path: "merchants", name: "merchants", meta: { headerTitle: "商家" }, component: () => import("../views/MerchantsView.vue") },
         { path: "agents", name: "agents", meta: { headerTitle: "代理" }, component: () => import("../views/AgentsView.vue") },
+        {
+          path: "agents/new",
+          name: "agent-new",
+          meta: { headerTitle: "新增代理" },
+          component: () => import("../views/AgentNewView.vue")
+        },
         { path: "salesmen", name: "salesmen", meta: { headerTitle: "业务员" }, component: () => import("../views/SalesmenView.vue") },
+        {
+          path: "salesmen/new",
+          name: "salesman-new",
+          meta: { headerTitle: "新增业务员" },
+          component: () => import("../views/SalesmanNewView.vue")
+        },
         { path: "devices", name: "devices", meta: { headerTitle: "设备" }, component: () => import("../views/DevicesView.vue") },
         { path: "accessories", name: "accessories", meta: { headerTitle: "配件管理" }, component: () => import("../views/AccessoriesView.vue") },
         {
@@ -57,10 +69,28 @@ export const router = createRouter({
           component: () => import("../views/promo/PromoStoresView.vue")
         },
         {
+          path: "promo/store/:merchantId",
+          name: "promo-store-detail",
+          meta: { headerTitle: "店铺详情" },
+          component: () => import("../views/promo/PromoStoreDetailView.vue")
+        },
+        {
           path: "promo/store-new",
           name: "promo-store-new",
           meta: { headerTitle: "新增店铺" },
           component: () => import("../views/promo/PromoStoreNewView.vue")
+        },
+        {
+          path: "promo/merchant-audits",
+          name: "promo-merchant-audits",
+          meta: { headerTitle: "店铺审核" },
+          component: () => import("../views/promo/PromoMerchantAuditsView.vue")
+        },
+        {
+          path: "promo/merchant-audit/:auditId",
+          name: "promo-merchant-audit-detail",
+          meta: { headerTitle: "审核详情" },
+          component: () => import("../views/promo/PromoMerchantAuditDetailView.vue")
         },
         {
           path: "promo/device-new",

@@ -1,8 +1,12 @@
 package com.envoil.app.service;
 
 import com.envoil.app.model.MerchantCreateRequest;
+import com.envoil.app.model.MerchantUpdateRequest;
 import com.envoil.app.model.OpenidBizScope;
 import com.envoil.app.model.AccessoryCreateRequest;
+import com.envoil.app.model.AccessoryConsumeLine;
+import com.envoil.app.model.AgentCreateRequest;
+import com.envoil.app.model.SalesmanCreateRequest;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -156,6 +160,149 @@ public class AppBizDataService {
         return out;
     }
 
+    /**
+     * 店铺详情（主端/代理/业务员/商家按数据范围可见）。
+     */
+    public Map<String, Object> getMerchantDetail(String openid, long merchantId) {
+        OpenidBizScope s = scopeService.resolve(openid);
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT m.merchant_id, m.agent_id, m.salesman_id, m.industry_type, m.merchant_name, m.contact_name, ")
+                .append("m.contact_phone, m.longitude, m.latitude, m.province, m.city, m.district, m.address_detail, ")
+                .append("m.oil_unit_price, m.merchant_commission, m.arrears_amount, m.device_count, m.status, ")
+                .append("m.remark, m.store_image_url, m.linked_merchant_id, a.agent_name, sm.salesman_name ")
+                .append("FROM biz_env_merchant m ")
+                .append("JOIN biz_env_agent a ON a.agent_id = m.agent_id AND a.del_flag = '0' ")
+                .append("LEFT JOIN biz_env_salesman sm ON sm.salesman_id = m.salesman_id AND sm.del_flag = '0' ")
+                .append("WHERE m.merchant_id = ? AND m.del_flag = '0' ");
+        List<Object> args = new ArrayList<>();
+        args.add(merchantId);
+        appendMerchantScope(sql, args, s);
+        List<Map<String, Object>> rows = jdbcTemplate.query(
+                sql.toString(),
+                args.toArray(),
+                (rs, i) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("merchantId", rs.getLong("merchant_id"));
+                    row.put("agentId", rs.getLong("agent_id"));
+                    row.put("salesmanId", rs.getObject("salesman_id") == null ? null : rs.getLong("salesman_id"));
+                    row.put("industryType", rs.getString("industry_type"));
+                    row.put("merchantName", rs.getString("merchant_name"));
+                    row.put("contactName", rs.getString("contact_name"));
+                    row.put("contactPhone", rs.getString("contact_phone"));
+                    row.put("longitude", rs.getBigDecimal("longitude") == null ? null : rs.getBigDecimal("longitude").doubleValue());
+                    row.put("latitude", rs.getBigDecimal("latitude") == null ? null : rs.getBigDecimal("latitude").doubleValue());
+                    row.put("province", rs.getString("province"));
+                    row.put("city", rs.getString("city"));
+                    row.put("district", rs.getString("district"));
+                    row.put("addressDetail", rs.getString("address_detail"));
+                    row.put("oilUnitPrice", rs.getBigDecimal("oil_unit_price") == null ? 0 : rs.getBigDecimal("oil_unit_price").doubleValue());
+                    row.put("merchantCommission", rs.getBigDecimal("merchant_commission") == null
+                            ? 0
+                            : rs.getBigDecimal("merchant_commission").doubleValue());
+                    row.put("arrearsAmount", rs.getBigDecimal("arrears_amount") == null ? 0 : rs.getBigDecimal("arrears_amount").doubleValue());
+                    row.put("deviceCount", rs.getInt("device_count"));
+                    row.put("status", labelMerchantStatus(rs.getString("status")));
+                    row.put("statusCode", rs.getString("status"));
+                    row.put("remark", rs.getString("remark"));
+                    row.put("storeImageUrl", rs.getString("store_image_url"));
+                    row.put("linkedMerchantId", rs.getObject("linked_merchant_id") == null ? null : rs.getLong("linked_merchant_id"));
+                    row.put("agentName", rs.getString("agent_name"));
+                    row.put("salesmanName", rs.getString("salesman_name"));
+                    return row;
+                });
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("店铺不存在或无权查看");
+        }
+        Map<String, Object> row = rows.get(0);
+        char r = s.getUserRole();
+        row.put("canDirectEdit", r == '1' || r == '2');
+        row.put("canSubmitAudit", r == '3');
+        if (r == '3' && s.getSalesmanId() != null) {
+            Integer pend = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM biz_env_merchant_audit WHERE merchant_id = ? AND status = '0' AND del_flag = '0' "
+                            + "AND submitter_salesman_id = ?",
+                    Integer.class,
+                    merchantId,
+                    s.getSalesmanId());
+            row.put("hasPendingMyAudit", pend != null && pend > 0);
+        } else {
+            row.put("hasPendingMyAudit", false);
+        }
+        return row;
+    }
+
+    /**
+     * 主端、代理可直接修改店铺资料（不经审核）。
+     */
+    public void updateMerchant(MerchantUpdateRequest req) {
+        OpenidBizScope s = scopeService.resolve(req.getOpenid());
+        char r = s.getUserRole();
+        if (r != '1' && r != '2') {
+            throw new IllegalArgumentException("仅主端或代理可直接修改店铺");
+        }
+        long merchantId = req.getMerchantId();
+        Map<String, Object> cur = getMerchantDetail(req.getOpenid(), merchantId);
+        long agentId = ((Number) cur.get("agentId")).longValue();
+        if (r == '2' && (s.getAgentId() == null || s.getAgentId().longValue() != agentId)) {
+            throw new IllegalArgumentException("无权修改该店铺");
+        }
+        applyMerchantUpdate(merchantId, agentId, req);
+    }
+
+    /**
+     * 审核通过后写入店铺（由审核服务调用）。
+     */
+    public void applyMerchantUpdate(long merchantId, long agentId, MerchantUpdateRequest req) {
+        if (req.getLongitude() == null || req.getLatitude() == null) {
+            throw new IllegalArgumentException("请填写经纬度");
+        }
+        String img = req.getStoreImageUrl();
+        if (img != null && img.length() > 8000) {
+            throw new IllegalArgumentException("店铺图片数据过大，请压缩或使用外链地址");
+        }
+        Long salesmanId = req.getSalesmanId();
+        if (salesmanId != null) {
+            ensureSalesmanBelongsToAgent(salesmanId, agentId);
+        }
+        if (req.getLinkedMerchantId() != null) {
+            ensureLinkedMerchant(req.getLinkedMerchantId(), agentId);
+            if (req.getLinkedMerchantId().longValue() == merchantId) {
+                throw new IllegalArgumentException("关联商家不能为自身");
+            }
+        }
+        BigDecimal oil = BigDecimal.valueOf(req.getOilUnitPrice() == null ? 0 : req.getOilUnitPrice());
+        BigDecimal comm = BigDecimal.valueOf(req.getMerchantCommission() == null ? 0 : req.getMerchantCommission());
+        BigDecimal lon = BigDecimal.valueOf(req.getLongitude());
+        BigDecimal lat = BigDecimal.valueOf(req.getLatitude());
+        int n = jdbcTemplate.update(
+                "UPDATE biz_env_merchant SET industry_type = ?, merchant_name = ?, contact_name = ?, contact_phone = ?, "
+                        + "longitude = ?, latitude = ?, province = ?, city = ?, district = ?, address_detail = ?, "
+                        + "oil_unit_price = ?, merchant_commission = ?, salesman_id = ?, linked_merchant_id = ?, remark = ?, "
+                        + "store_image_url = ? "
+                        + "WHERE merchant_id = ? AND agent_id = ? AND del_flag = '0'",
+                req.getIndustryType(),
+                req.getMerchantName(),
+                req.getContactName(),
+                req.getContactPhone(),
+                lon,
+                lat,
+                req.getProvince(),
+                req.getCity(),
+                req.getDistrict(),
+                req.getAddressDetail(),
+                oil,
+                comm,
+                salesmanId,
+                req.getLinkedMerchantId(),
+                req.getRemark(),
+                img,
+                merchantId,
+                agentId);
+        if (n == 0) {
+            throw new IllegalStateException("店铺更新失败，请刷新后重试");
+        }
+    }
+
     private void ensureSalesmanBelongsToAgent(long salesmanId, long agentId) {
         Integer n = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM biz_env_salesman WHERE salesman_id = ? AND agent_id = ? AND del_flag = '0'",
@@ -254,6 +401,84 @@ public class AppBizDataService {
             row.put("status", labelSalesmanStatus(rs.getString("status")));
             return row;
         });
+    }
+
+    /**
+     * 主端新增代理。
+     */
+    public Map<String, Object> createAgent(AgentCreateRequest req) {
+        OpenidBizScope s = scopeService.resolve(req.getOpenid());
+        if (s.getUserRole() != '1') {
+            throw new IllegalArgumentException("仅主端可新增代理");
+        }
+        String name = req.getAgentName() == null ? "" : req.getAgentName().trim();
+        if (name.isEmpty()) {
+            throw new IllegalArgumentException("代理名称不能为空");
+        }
+        GeneratedKeyHolder kh = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO biz_env_agent (agent_name, contact_name, contact_phone, province, city, district, address_detail, status, del_flag) "
+                            + "VALUES (?,?,?,?,?,?,?,'0','0')",
+                    Statement.RETURN_GENERATED_KEYS);
+            ps.setString(1, name);
+            ps.setString(2, emptyToNull(req.getContactName()));
+            ps.setString(3, emptyToNull(req.getContactPhone()));
+            ps.setString(4, emptyToNull(req.getProvince()));
+            ps.setString(5, emptyToNull(req.getCity()));
+            ps.setString(6, emptyToNull(req.getDistrict()));
+            ps.setString(7, emptyToNull(req.getAddressDetail()));
+            return ps;
+        }, kh);
+        Number key = kh.getKey();
+        if (key == null) {
+            throw new IllegalStateException("未能获取新代理 ID");
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("agentId", key.longValue());
+        return out;
+    }
+
+    /**
+     * 代理新增本名下业务员。
+     */
+    public Map<String, Object> createSalesman(SalesmanCreateRequest req) {
+        OpenidBizScope s = scopeService.resolve(req.getOpenid());
+        if (s.getUserRole() != '2') {
+            throw new IllegalArgumentException("仅代理可新增业务员");
+        }
+        if (s.getAgentId() == null) {
+            throw new IllegalArgumentException("未绑定代理");
+        }
+        String nm = req.getSalesmanName() == null ? "" : req.getSalesmanName().trim();
+        if (nm.isEmpty()) {
+            throw new IllegalArgumentException("业务员姓名不能为空");
+        }
+        GeneratedKeyHolder kh = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO biz_env_salesman (salesman_name, phone, agent_id, status, del_flag) VALUES (?,?,?,'0','0')",
+                    Statement.RETURN_GENERATED_KEYS);
+            ps.setString(1, nm);
+            ps.setString(2, emptyToNull(req.getPhone()));
+            ps.setLong(3, s.getAgentId());
+            return ps;
+        }, kh);
+        Number key = kh.getKey();
+        if (key == null) {
+            throw new IllegalStateException("未能获取新业务员 ID");
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("salesmanId", key.longValue());
+        return out;
+    }
+
+    private static String emptyToNull(String v) {
+        if (v == null) {
+            return null;
+        }
+        String t = v.trim();
+        return t.isEmpty() ? null : t;
     }
 
     public List<Map<String, Object>> listDevices(String openid) {
@@ -485,6 +710,76 @@ public class AppBizDataService {
                 String.valueOf(operatorKind),
                 operatorId,
                 req.getRemark());
+    }
+
+    /**
+     * 工单结单扣减代理配件库存：按种类汇总校验可用量后，写入负数量流水（与入库同表，汇总 SUM(qty) 即库存）。
+     */
+    public void consumeAccessoriesForWorkOrder(
+            long agentId,
+            String workOrderNo,
+            char operatorKind,
+            Long operatorSalesmanId,
+            List<AccessoryConsumeLine> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return;
+        }
+        Map<Long, BigDecimal> merged = new LinkedHashMap<>();
+        for (AccessoryConsumeLine line : lines) {
+            if (line == null || line.getTypeId() == null || line.getQty() == null) {
+                continue;
+            }
+            BigDecimal q = BigDecimal.valueOf(line.getQty()).setScale(2, RoundingMode.HALF_UP);
+            if (q.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            merged.merge(line.getTypeId(), q, BigDecimal::add);
+        }
+        if (merged.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<Long, BigDecimal> e : merged.entrySet()) {
+            long typeId = e.getKey();
+            BigDecimal need = e.getValue();
+            Integer typeOk = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM biz_env_accessory_type WHERE type_id = ? AND del_flag = '0'",
+                    Integer.class,
+                    typeId);
+            if (typeOk == null || typeOk == 0) {
+                throw new IllegalArgumentException("配件种类无效: " + typeId);
+            }
+            String typeName = jdbcTemplate.queryForObject(
+                    "SELECT type_name FROM biz_env_accessory_type WHERE type_id = ? AND del_flag = '0'",
+                    String.class,
+                    typeId);
+            BigDecimal bal = jdbcTemplate.queryForObject(
+                    "SELECT COALESCE(SUM(qty),0) FROM biz_env_accessory WHERE agent_id = ? AND type_id = ? AND del_flag = '0'",
+                    BigDecimal.class,
+                    agentId,
+                    typeId);
+            if (bal == null) {
+                bal = BigDecimal.ZERO;
+            }
+            bal = bal.setScale(2, RoundingMode.HALF_UP);
+            if (bal.compareTo(need) < 0) {
+                throw new IllegalArgumentException("配件「" + typeName + "」库存不足（当前 " + bal + "，需扣 " + need + "）");
+            }
+            BigDecimal negQty = need.negate();
+            String remark = "工单消耗:" + workOrderNo;
+            Long opId = operatorKind == '3' ? operatorSalesmanId : null;
+            jdbcTemplate.update(
+                    "INSERT INTO biz_env_accessory (agent_id, merchant_id, type_id, acc_name, acc_code, qty, unit_price, inbound_cost, "
+                            + "operator_kind, operator_id, remark, del_flag) VALUES (?,?,?,?,?,?,0,0,?,?,?,'0')",
+                    agentId,
+                    null,
+                    typeId,
+                    typeName,
+                    null,
+                    negQty,
+                    String.valueOf(operatorKind),
+                    opId,
+                    remark);
+        }
     }
 
     private void appendAccessoryScope(StringBuilder sql, List<Object> args, OpenidBizScope s) {
@@ -916,10 +1211,16 @@ public class AppBizDataService {
 
     private static String labelDeviceStatus(String code) {
         if ("0".equals(code)) {
-            return "停用";
+            return "在库";
         }
         if ("1".equals(code)) {
-            return "正常";
+            return "在商家";
+        }
+        if ("2".equals(code)) {
+            return "维修中";
+        }
+        if ("3".equals(code)) {
+            return "停用";
         }
         return code == null ? "" : code;
     }

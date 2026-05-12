@@ -2,14 +2,21 @@ package com.envoil.app.controller;
 
 import com.envoil.app.common.ApiResponse;
 import com.envoil.app.model.DeviceEventCreateRequest;
+import com.envoil.app.model.MerchantAuditReviewRequest;
 import com.envoil.app.model.MerchantCreateRequest;
+import com.envoil.app.model.MerchantUpdateRequest;
 import com.envoil.app.model.AccountShareCreateRequest;
 import com.envoil.app.model.AccessoryCreateRequest;
+import com.envoil.app.model.AgentCreateRequest;
+import com.envoil.app.model.SalesmanCreateRequest;
 import com.envoil.app.service.AppBizDataService;
 import com.envoil.app.service.AppDeviceEventService;
+import com.envoil.app.service.AppMerchantAuditService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -23,10 +30,15 @@ public class AppBizController {
 
     private final AppBizDataService bizDataService;
     private final AppDeviceEventService deviceEventService;
+    private final AppMerchantAuditService merchantAuditService;
 
-    public AppBizController(AppBizDataService bizDataService, AppDeviceEventService deviceEventService) {
+    public AppBizController(
+            AppBizDataService bizDataService,
+            AppDeviceEventService deviceEventService,
+            AppMerchantAuditService merchantAuditService) {
         this.bizDataService = bizDataService;
         this.deviceEventService = deviceEventService;
+        this.merchantAuditService = merchantAuditService;
     }
 
     @GetMapping("/merchants")
@@ -39,14 +51,64 @@ public class AppBizController {
         return ApiResponse.ok(bizDataService.createMerchant(req));
     }
 
+    @GetMapping("/merchants/detail")
+    public ApiResponse<?> merchantDetail(@RequestParam String openid, @RequestParam long merchantId) {
+        return ApiResponse.ok(bizDataService.getMerchantDetail(openid, merchantId));
+    }
+
+    @PutMapping("/merchants")
+    public ApiResponse<?> updateMerchant(@Validated @RequestBody MerchantUpdateRequest req) {
+        bizDataService.updateMerchant(req);
+        return ApiResponse.ok(null);
+    }
+
+    @GetMapping("/merchant-audits")
+    public ApiResponse<?> merchantAudits(@RequestParam String openid) {
+        return ApiResponse.ok(merchantAuditService.listAudits(openid));
+    }
+
+    @GetMapping("/merchant-audits/detail")
+    public ApiResponse<?> merchantAuditDetail(@RequestParam String openid, @RequestParam long auditId) {
+        return ApiResponse.ok(merchantAuditService.getAuditDetail(openid, auditId));
+    }
+
+    @PostMapping("/merchant-audits")
+    public ApiResponse<?> merchantAuditSubmit(@Validated @RequestBody MerchantUpdateRequest req) {
+        return ApiResponse.ok(merchantAuditService.submitAudit(req));
+    }
+
+    @PostMapping("/merchant-audits/{auditId}/approve")
+    public ApiResponse<?> merchantAuditApprove(
+            @PathVariable long auditId, @Validated @RequestBody MerchantAuditReviewRequest req) {
+        merchantAuditService.approve(auditId, req);
+        return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/merchant-audits/{auditId}/reject")
+    public ApiResponse<?> merchantAuditReject(
+            @PathVariable long auditId, @Validated @RequestBody MerchantAuditReviewRequest req) {
+        merchantAuditService.reject(auditId, req);
+        return ApiResponse.ok(null);
+    }
+
     @GetMapping("/agents")
     public ApiResponse<?> agents(@RequestParam String openid) {
         return ApiResponse.ok(bizDataService.listAgents(openid));
     }
 
+    @PostMapping("/agents")
+    public ApiResponse<?> createAgent(@Validated @RequestBody AgentCreateRequest req) {
+        return ApiResponse.ok(bizDataService.createAgent(req));
+    }
+
     @GetMapping("/salesmen")
     public ApiResponse<?> salesmen(@RequestParam String openid) {
         return ApiResponse.ok(bizDataService.listSalesmen(openid));
+    }
+
+    @PostMapping("/salesmen")
+    public ApiResponse<?> createSalesman(@Validated @RequestBody SalesmanCreateRequest req) {
+        return ApiResponse.ok(bizDataService.createSalesman(req));
     }
 
     @GetMapping("/devices")

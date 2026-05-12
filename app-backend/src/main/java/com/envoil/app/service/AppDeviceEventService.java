@@ -4,6 +4,7 @@ import com.envoil.app.model.DeviceEventCreateRequest;
 import com.envoil.app.model.OpenidBizScope;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
@@ -72,6 +73,7 @@ public class AppDeviceEventService {
         });
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public void createEvent(DeviceEventCreateRequest req) {
         OpenidBizScope s = scopeService.resolve(req.getOpenid());
         char role = s.getUserRole();
@@ -91,6 +93,27 @@ public class AppDeviceEventService {
             agentId = s.getAgentId();
         }
         Long mid = req.getMerchantId();
+        String no = req.getDeviceNo() == null ? "" : req.getDeviceNo().trim();
+        if (no.isEmpty()) {
+            throw new IllegalArgumentException("设备编号不能为空");
+        }
+
+        String addModeTrim = null;
+        if ("A".equals(req.getEventType())) {
+            addModeTrim = req.getAddMode() == null ? "" : req.getAddMode().trim();
+            if (addModeTrim.isEmpty()) {
+                throw new IllegalArgumentException("新增设备请选择入库或商家新增");
+            }
+            if (!"inbound".equals(addModeTrim) && !"merchant".equals(addModeTrim)) {
+                throw new IllegalArgumentException("新增方式须为 inbound（入库）或 merchant（商家新增）");
+            }
+            if ("inbound".equals(addModeTrim)) {
+                mid = null;
+            } else if (mid == null) {
+                throw new IllegalArgumentException("商家新增请选择商家");
+            }
+        }
+
         if (mid != null) {
             Integer ok = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM biz_env_merchant WHERE merchant_id = ? AND agent_id = ? AND del_flag = '0'",
@@ -101,10 +124,26 @@ public class AppDeviceEventService {
                 throw new IllegalArgumentException("门店不属于该代理");
             }
         }
-        String no = req.getDeviceNo() == null ? "" : req.getDeviceNo().trim();
-        if (no.isEmpty()) {
-            throw new IllegalArgumentException("设备编号不能为空");
+
+        if ("A".equals(req.getEventType())) {
+            Integer dup = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM biz_env_device WHERE device_no = ? AND del_flag = '0'",
+                    Integer.class,
+                    no);
+            if (dup != null && dup > 0) {
+                throw new IllegalArgumentException("设备编号已存在");
+            }
+            String deviceStatus = "inbound".equals(addModeTrim) ? "0" : "1";
+            Long merchantForDevice = "inbound".equals(addModeTrim) ? null : mid;
+            jdbc.update(
+                    "INSERT INTO biz_env_device (device_type, merchant_id, agent_id, device_no, device_status, del_flag) "
+                            + "VALUES ('1',?,?,?,?,'0')",
+                    merchantForDevice,
+                    agentId,
+                    no,
+                    deviceStatus);
         }
+
         jdbc.update(
                 "INSERT INTO biz_env_device_event_log (agent_id, merchant_id, device_no, event_type, remark, operator_openid, del_flag) "
                         + "VALUES (?,?,?,?,?,?, '0')",

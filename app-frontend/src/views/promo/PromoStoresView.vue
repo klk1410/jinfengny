@@ -34,17 +34,42 @@ onMounted(load);
       <button v-if="canCreateStore" type="button" class="pf-tool" @click="router.push({ name: 'promo-store-new' })">
         新增店铺
       </button>
+      <button
+        v-if="roleCode === 'main' || roleCode === 'agent' || roleCode === 'sales'"
+        type="button"
+        class="pf-tool pf-tool--ghost"
+        @click="router.push({ name: 'promo-merchant-audits' })"
+      >
+        店铺审核
+      </button>
       <button type="button" class="pf-tool pf-tool--ghost" @click="load">刷新</button>
     </div>
 
     <div class="pf-card">
       <div v-if="!rows.length" class="pf-muted" style="padding: 12px">暂无数据</div>
-      <div v-for="(m, i) in rows" :key="i" class="pf-item">
+      <button
+        v-for="(m, i) in rows"
+        :key="i"
+        type="button"
+        class="pf-item pf-item--link"
+        @click="router.push({ name: 'promo-store-detail', params: { merchantId: String(m.merchantId) } })"
+      >
         <div class="pf-line-strong">#{{ m.merchantId }} {{ m.merchantName }}</div>
         <div class="pf-line-muted">{{ m.contactName }} {{ m.contactPhone }}</div>
         <div class="pf-line-muted">{{ m.city }} · {{ m.agentName }} · {{ m.salesmanName || "—" }}</div>
         <div class="pf-line-muted">单价 ¥{{ m.oilUnitPrice }} · 欠费 ¥{{ m.arrearsAmount }} · {{ m.status }}</div>
-      </div>
+      </button>
     </div>
   </div>
 </template>
+
+<style scoped>
+.pf-item--link {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: block;
+}
+</style>

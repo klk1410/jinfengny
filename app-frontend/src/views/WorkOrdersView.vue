@@ -8,6 +8,11 @@ const err = ref("");
 
 const roleCode = computed(() => shell.portal?.roleCode ?? "");
 
+const finishOpen = ref(false);
+const finishNo = ref("");
+const finishLines = ref([]);
+const finishBusy = ref(false);
+
 async function load() {
   err.value = "";
   try {
@@ -56,17 +61,89 @@ async function onAssign(no) {
   }
 }
 
-async function onFinish(no) {
-  if (!window.confirm("确认完工？")) {
+async function openFinishDialog(no) {
+  err.value = "";
+  finishNo.value = no;
+  finishBusy.value = true;
+  finishOpen.value = true;
+  finishLines.value = [];
+  try {
+    const oid = encodeURIComponent(shell.loginOpenid);
+    const [types, sum] = await Promise.all([
+      requestJson("/app-api/biz/accessory-types"),
+      requestJson(`/app-api/biz/accessories?openid=${oid}`)
+    ]);
+    const bal = new Map((sum || []).map((s) => [Number(s.typeId), Number(s.qtyTotal) || 0]));
+    finishLines.value = (types || []).map((t) => ({
+      typeId: t.typeId,
+      typeName: t.typeName,
+      balance: bal.get(Number(t.typeId)) ?? 0,
+      qty: 0
+    }));
+  } catch (e) {
+    err.value = e.message || String(e);
+    finishOpen.value = false;
+  } finally {
+    finishBusy.value = false;
+  }
+}
+
+function closeFinishDialog() {
+  finishOpen.value = false;
+  finishNo.value = "";
+  finishLines.value = [];
+}
+
+async function submitFinish() {
+  err.value = "";
+  const oid = shell.loginOpenid;
+  const consumes = [];
+  for (const row of finishLines.value) {
+    const q = Number(row.qty);
+    if (Number.isFinite(q) && q > 0) {
+      consumes.push({ typeId: row.typeId, qty: q });
+    }
+  }
+  if (roleCode.value === "sales") {
+    for (const row of finishLines.value) {
+      const q = Number(row.qty);
+      if (Number.isFinite(q) && q > row.balance + 1e-6) {
+        err.value = `「${row.typeName}」填写数量超过当前库存 ${row.balance}`;
+        return;
+      }
+    }
+  }
+  finishBusy.value = true;
+  try {
+    await requestJson(
+      `/app-api/work-order/${encodeURIComponent(finishNo.value)}/finish?openid=${encodeURIComponent(oid)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessoryConsumes: consumes })
+      }
+    );
+    closeFinishDialog();
+    await load();
+  } catch (e) {
+    err.value = e.message || String(e);
+  } finally {
+    finishBusy.value = false;
+  }
+}
+
+async function onFinishAgentMain(no) {
+  if (!window.confirm("确认完工？（未填写配件消耗，将不扣减配件库）")) {
     return;
   }
   err.value = "";
   try {
     const oid = shell.loginOpenid;
-    await requestJson(
-      `/app-api/work-order/${encodeURIComponent(no)}/finish?openid=${encodeURIComponent(oid)}`,
-      { method: "POST" }
-    );
+    await requestJson(`/app-api/work-order/${encodeURIComponent(no)}/finish?openid=${encodeURIComponent(oid)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessoryConsumes: [] })
+    });
     await load();
   } catch (e) {
     err.value = e.message || String(e);
@@ -127,7 +204,38 @@ onMounted(load);
         <div class="actions">
           <button v-if="showReceive(w)" type="button" class="btn-sm" @click="onReceive(w.workOrderNo)">抢单</button>
           <button v-if="showAssign(w)" type="button" class="btn-sm secondary" @click="onAssign(w.workOrderNo)">指派</button>
-          <button v-if="showFinish(w)" type="button" class="btn-sm ok" @click="onFinish(w.workOrderNo)">完工</button>
+          <button
+            v-if="showFinish(w) && roleCode === 'sales'"
+            type="button"
+            class="btn-sm ok"
+            @click="openFinishDialog(w.workOrderNo)"
+          >
+            结单
+          </button>
+          <button v-if="showFinish(w) && roleCode !== 'sales'" type="button" class="btn-sm ok" @click="onFinishAgentMain(w.workOrderNo)">
+            完工
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="finishOpen" class="mask" @click.self="closeFinishDialog">
+      <div class="dialog">
+        <h3 class="dlg-title">结单 · 配件消耗</h3>
+        <p class="dlg-hint">请填写本次工单消耗的配件数量（可为 0）；提交后从本代理配件库存自动扣减。</p>
+        <p v-if="finishBusy" class="muted">加载中…</p>
+        <div v-else class="dlg-body">
+          <div v-for="(row, j) in finishLines" :key="j" class="dlg-row">
+            <div class="dlg-name">
+              {{ row.typeName }}
+              <span class="dlg-bal">库存 {{ row.balance }}</span>
+            </div>
+            <input v-model.number="row.qty" class="dlg-inp" type="number" min="0" step="0.01" placeholder="0" />
+          </div>
+        </div>
+        <div class="dlg-actions">
+          <button type="button" class="btn-sm secondary" :disabled="finishBusy" @click="closeFinishDialog">取消</button>
+          <button type="button" class="btn-sm ok" :disabled="finishBusy" @click="submitFinish">确认结单</button>
         </div>
       </div>
     </div>
@@ -192,5 +300,70 @@ onMounted(load);
 }
 .btn-sm.ok {
   background: #0d9488;
+}
+.mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 50;
+  padding: 12px;
+  box-sizing: border-box;
+}
+.dialog {
+  width: 100%;
+  max-width: 440px;
+  max-height: 85vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 12px 12px 0 0;
+  padding: 14px 14px 18px;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
+}
+.dlg-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+.dlg-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.45;
+}
+.dlg-body {
+  max-height: 50vh;
+  overflow: auto;
+}
+.dlg-row {
+  display: grid;
+  grid-template-columns: 1fr 88px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+.dlg-name {
+  color: #0f172a;
+}
+.dlg-bal {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+.dlg-inp {
+  border: 1px solid #d0d7e2;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 13px;
+  text-align: right;
+}
+.dlg-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 </style>

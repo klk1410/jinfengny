@@ -1,6 +1,8 @@
 package com.envoil.app.service;
 
 import com.envoil.app.model.OpenidBizScope;
+import com.envoil.app.model.AccessoryConsumeLine;
+import com.envoil.app.model.WorkOrderFinishRequest;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -27,16 +29,19 @@ public class AppBizWorkOrderService {
     private final AppOpenidBizScopeService scopeService;
     private final AppBizStockService stockService;
     private final AppBizAccountService accountService;
+    private final AppBizDataService bizDataService;
 
     public AppBizWorkOrderService(
             JdbcTemplate jdbcTemplate,
             AppOpenidBizScopeService scopeService,
             @Lazy AppBizStockService stockService,
-            AppBizAccountService accountService) {
+            AppBizAccountService accountService,
+            @Lazy AppBizDataService bizDataService) {
         this.jdbcTemplate = jdbcTemplate;
         this.scopeService = scopeService;
         this.stockService = stockService;
         this.accountService = accountService;
+        this.bizDataService = bizDataService;
     }
 
     public List<Map<String, Object>> listWorkOrders(String openid) {
@@ -176,7 +181,7 @@ public class AppBizWorkOrderService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, Object> finishWorkOrder(String openid, String workOrderNo) {
+    public Map<String, Object> finishWorkOrder(String openid, String workOrderNo, WorkOrderFinishRequest req) {
         OpenidBizScope scope = scopeService.resolve(openid);
         Map<String, Object> wo = loadWorkOrder(workOrderNo);
         if (wo == null) {
@@ -200,6 +205,16 @@ public class AppBizWorkOrderService {
             }
         } else if (r != '1') {
             throw new IllegalArgumentException("无权完工");
+        }
+        long agentIdWo = ((Number) wo.get("agent_id")).longValue();
+        List<AccessoryConsumeLine> consumeLines = req == null ? null : req.getAccessoryConsumes();
+        if (r == '3') {
+            if (consumeLines == null) {
+                throw new IllegalArgumentException("结单请提交 JSON，例如 {\"accessoryConsumes\":[]} 或 [{\"typeId\":1,\"qty\":2}]");
+            }
+            bizDataService.consumeAccessoriesForWorkOrder(agentIdWo, workOrderNo, '3', scope.getSalesmanId(), consumeLines);
+        } else if (consumeLines != null && !consumeLines.isEmpty()) {
+            bizDataService.consumeAccessoriesForWorkOrder(agentIdWo, workOrderNo, '2', null, consumeLines);
         }
         String orderNo = (String) wo.get("order_no");
         if (orderNo != null && !orderNo.isEmpty()) {

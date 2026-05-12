@@ -1,10 +1,12 @@
 package com.envoil.app.controller;
 
 import com.envoil.app.common.ApiResponse;
+import com.envoil.app.model.WorkOrderFinishRequest;
 import com.envoil.app.service.AppBizWorkOrderService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -48,8 +50,11 @@ public class WorkOrderController {
     }
 
     @PostMapping("/{workOrderNo}/finish")
-    public ApiResponse<?> finish(@PathVariable String workOrderNo, @RequestParam String openid) {
-        Map<String, Object> data = workOrderService.finishWorkOrder(openid, workOrderNo);
+    public ApiResponse<?> finish(
+            @PathVariable String workOrderNo,
+            @RequestParam String openid,
+            @RequestBody(required = false) WorkOrderFinishRequest body) {
+        Map<String, Object> data = workOrderService.finishWorkOrder(openid, workOrderNo, body);
         if (data == null) {
             return ApiResponse.fail("未找到工单或无权限");
         }
