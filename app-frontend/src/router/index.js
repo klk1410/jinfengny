@@ -95,7 +95,7 @@ export const router = createRouter({
         {
           path: "promo/merchant-audits",
           name: "promo-merchant-audits",
-          meta: { headerTitle: "店铺审核" },
+          meta: { headerTitle: "审核管理" },
           component: () => import("../views/promo/PromoMerchantAuditsView.vue")
         },
         {
@@ -106,9 +106,10 @@ export const router = createRouter({
         },
         {
           path: "promo/device-event-audits",
-          name: "promo-device-event-audits",
-          meta: { headerTitle: "设备操作审核" },
-          component: () => import("../views/promo/PromoDeviceEventAuditsView.vue")
+          redirect: (to) => ({
+            name: "promo-merchant-audits",
+            query: { ...to.query, tab: "device" }
+          })
         },
         {
           path: "promo/device-event-audit/:auditId",

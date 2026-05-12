@@ -238,13 +238,12 @@ onMounted(load);
         <article class="dc-card dc-card--white">
         <div class="pf-row">
           <div class="pf-label req">所属行业</div>
-          <div class="pf-field-wrap">
+          <div class="pf-field-wrap pf-field-wrap--select">
             <select v-model="industryType" class="pf-field" :disabled="readOnly">
               <option disabled value="">选择所属行业</option>
               <option v-for="o in industryOptions" :key="o" :value="o">{{ o }}</option>
             </select>
           </div>
-          <span class="pf-chevron">▼</span>
         </div>
 
         <div class="pf-row">
@@ -317,7 +316,7 @@ onMounted(load);
 
         <div v-if="canDirectEdit" class="pf-row">
           <div class="pf-label">业务员</div>
-          <div class="pf-field-wrap">
+          <div class="pf-field-wrap pf-field-wrap--select">
             <select v-model="salesmanId" class="pf-field">
               <option value="">不指定</option>
               <option v-for="s in salesmen" :key="s.salesmanId" :value="String(s.salesmanId)">
@@ -325,7 +324,6 @@ onMounted(load);
               </option>
             </select>
           </div>
-          <span class="pf-chevron">›</span>
         </div>
 
         <div class="pf-row">

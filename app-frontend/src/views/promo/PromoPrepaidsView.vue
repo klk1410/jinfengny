@@ -97,7 +97,7 @@ onMounted(() => {
 
       <div class="pf-row">
         <div class="pf-label">关联门店</div>
-        <div class="pf-field-wrap">
+        <div class="pf-field-wrap pf-field-wrap--select">
           <select v-model="merchantId" class="pf-field">
             <option value="">选择门店（可选）</option>
             <option v-for="m in merchants" :key="m.merchantId" :value="String(m.merchantId)">
@@ -105,7 +105,6 @@ onMounted(() => {
             </option>
           </select>
         </div>
-        <span class="pf-chevron">›</span>
       </div>
 
       <div class="pf-row">
@@ -124,13 +123,12 @@ onMounted(() => {
 
       <div class="pf-row">
         <div class="pf-label req">方向</div>
-        <div class="pf-field-wrap">
+        <div class="pf-field-wrap pf-field-wrap--select">
           <select v-model="direction" class="pf-field">
             <option value="1">入账</option>
             <option value="2">支出</option>
           </select>
         </div>
-        <span class="pf-chevron">▼</span>
       </div>
 
       <div class="pf-row">

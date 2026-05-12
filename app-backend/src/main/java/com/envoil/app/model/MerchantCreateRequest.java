@@ -52,6 +52,9 @@ public class MerchantCreateRequest {
     private String remark;
     private String storeImageUrl;
 
+    /** 提交审核时的说明（新建店铺走审核时使用，不落 biz_env_merchant.remark） */
+    private String submitRemark;
+
     public String getOpenid() {
         return openid;
     }
@@ -194,5 +197,13 @@ public class MerchantCreateRequest {
 
     public void setStoreImageUrl(String storeImageUrl) {
         this.storeImageUrl = storeImageUrl;
+    }
+
+    public String getSubmitRemark() {
+        return submitRemark;
+    }
+
+    public void setSubmitRemark(String submitRemark) {
+        this.submitRemark = submitRemark;
     }
 }

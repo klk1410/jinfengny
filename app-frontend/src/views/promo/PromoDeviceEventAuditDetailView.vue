@@ -164,7 +164,12 @@ function formatPayload(p) {
       </div>
 
       <div class="pf-footer">
-        <button type="button" class="pf-tool pf-tool--ghost" style="width: 100%" @click="router.push({ name: 'promo-device-event-audits' })">
+        <button
+          type="button"
+          class="pf-tool pf-tool--ghost"
+          style="width: 100%"
+          @click="router.push({ name: 'promo-merchant-audits', query: { tab: 'device' } })"
+        >
           返回列表
         </button>
       </div>

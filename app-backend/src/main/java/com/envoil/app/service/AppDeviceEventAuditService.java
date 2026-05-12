@@ -43,6 +43,9 @@ public class AppDeviceEventAuditService {
     public List<Map<String, Object>> listAudits(String openid) {
         OpenidBizScope s = scopeService.resolve(openid);
         char r = s.getUserRole();
+        if (r != '1' && r != '2') {
+            throw new IllegalArgumentException("仅主端或代理可查看设备操作审核");
+        }
         StringBuilder sql = new StringBuilder()
                 .append("SELECT a.audit_id, a.agent_id, a.device_no, a.event_type, sm.salesman_name AS submitter_salesman_name, ")
                 .append("a.submitter_salesman_id, a.status, a.submit_remark, a.review_remark, a.create_time, a.review_time ")
@@ -52,23 +55,13 @@ public class AppDeviceEventAuditService {
         List<Object> args = new ArrayList<>();
         if (r == '1') {
             /* all */
-        } else if (r == '2') {
+        } else {
             if (s.getAgentId() == null) {
                 sql.append(" AND 1 = 0");
             } else {
                 sql.append(" AND a.agent_id = ?");
                 args.add(s.getAgentId());
             }
-        } else if (r == '3') {
-            if (s.getAgentId() == null || s.getSalesmanId() == null) {
-                sql.append(" AND 1 = 0");
-            } else {
-                sql.append(" AND a.agent_id = ? AND a.submitter_salesman_id = ?");
-                args.add(s.getAgentId());
-                args.add(s.getSalesmanId());
-            }
-        } else {
-            sql.append(" AND 1 = 0");
         }
         sql.append(" ORDER BY a.audit_id DESC LIMIT 500");
         return jdbc.query(sql.toString(), args.toArray(), (rs, i) -> {
@@ -93,6 +86,9 @@ public class AppDeviceEventAuditService {
     public Map<String, Object> getAuditDetail(String openid, long auditId) {
         OpenidBizScope s = scopeService.resolve(openid);
         char r = s.getUserRole();
+        if (r != '1' && r != '2') {
+            throw new IllegalArgumentException("仅主端或代理可查看设备操作审核详情");
+        }
         StringBuilder sql = new StringBuilder()
                 .append("SELECT a.audit_id, a.agent_id, a.device_no, a.event_type, a.status, a.submit_remark, a.review_remark, ")
                 .append("a.create_time, a.review_time, a.payload_json, sm.salesman_name AS submitter_salesman_name, ")
@@ -104,23 +100,13 @@ public class AppDeviceEventAuditService {
         args.add(auditId);
         if (r == '1') {
             /* all */
-        } else if (r == '2') {
+        } else {
             if (s.getAgentId() == null) {
                 sql.append(" AND 1 = 0");
             } else {
                 sql.append(" AND a.agent_id = ?");
                 args.add(s.getAgentId());
             }
-        } else if (r == '3') {
-            if (s.getAgentId() == null || s.getSalesmanId() == null) {
-                sql.append(" AND 1 = 0");
-            } else {
-                sql.append(" AND a.agent_id = ? AND a.submitter_salesman_id = ?");
-                args.add(s.getAgentId());
-                args.add(s.getSalesmanId());
-            }
-        } else {
-            sql.append(" AND 1 = 0");
         }
         List<Map<String, Object>> rows = jdbc.query(
                 sql.toString(),

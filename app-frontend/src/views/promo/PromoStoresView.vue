@@ -8,7 +8,9 @@ import { entityOnOffPillClass } from "../../utils/statusDisplay.js";
 const shell = inject("appShell");
 const router = useRouter();
 const roleCode = computed(() => shell.portal?.roleCode ?? "");
-const canCreateStore = computed(() => roleCode.value !== "merchant");
+const canCreateStore = computed(
+  () => roleCode.value === "main" || roleCode.value === "agent" || roleCode.value === "sales" || roleCode.value === "merchant"
+);
 const rows = ref([]);
 const err = ref("");
 
@@ -36,7 +38,7 @@ onMounted(load);
         新增店铺
       </button>
       <button
-        v-if="roleCode === 'main' || roleCode === 'agent' || roleCode === 'sales'"
+        v-if="roleCode === 'main' || roleCode === 'agent' || roleCode === 'sales' || roleCode === 'merchant'"
         type="button"
         class="pf-tool pf-tool--ghost"
         @click="router.push({ name: 'promo-merchant-audits' })"

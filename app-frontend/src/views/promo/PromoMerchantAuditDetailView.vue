@@ -114,7 +114,10 @@ function formatPayload(p) {
         <div class="sum-grid">
           <div class="sum-cell">
             <span class="sum-k">店铺</span>
-            <span class="sum-v">#{{ detail.merchantId }} {{ detail.merchantName }}</span>
+            <span class="sum-v">
+              <template v-if="detail.auditKind === 'C'">新建 · {{ detail.merchantName || "—" }}</template>
+              <template v-else>#{{ detail.merchantId }} {{ detail.merchantName }}</template>
+            </span>
           </div>
           <div class="sum-cell">
             <span class="sum-k">提交时间</span>
@@ -135,7 +138,7 @@ function formatPayload(p) {
         </div>
       </div>
 
-      <h3 class="pf-panel-title" style="margin: 14px 0 8px">修改内容</h3>
+      <h3 class="pf-panel-title" style="margin: 14px 0 8px">{{ detail.auditKind === "C" ? "新建店铺申请" : "修改内容" }}</h3>
       <div class="dc-stack">
         <article v-for="(line, i) in formatPayload(detail.payload)" :key="i" class="dc-card dc-card--white payload-line">
           <div class="payload-k">{{ line.label }}</div>

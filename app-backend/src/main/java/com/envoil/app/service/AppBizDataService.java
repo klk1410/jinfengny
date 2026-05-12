@@ -74,7 +74,7 @@ public class AppBizDataService {
     }
 
     /**
-     * 主端、代理、业务员可新增店铺（商家端无此权限）。
+     * 主端、代理可直接新增店铺；业务员与商家需走审核（见 {@link com.envoil.app.service.AppMerchantAuditService#submitCreateAudit}）。
      */
     public Map<String, Object> createMerchant(MerchantCreateRequest req) {
         OpenidBizScope s = scopeService.resolve(req.getOpenid());
@@ -91,17 +91,16 @@ public class AppBizDataService {
                 throw new IllegalArgumentException("未绑定代理");
             }
             agentId = s.getAgentId();
-        } else if (r == '3') {
-            if (s.getAgentId() == null) {
-                throw new IllegalArgumentException("未绑定代理");
-            }
-            agentId = s.getAgentId();
-            if (salesmanId == null) {
-                salesmanId = s.getSalesmanId();
-            }
         } else {
-            throw new IllegalArgumentException("无权限新增店铺");
+            throw new IllegalArgumentException("无权限直接新增店铺，请提交审核");
         }
+        return insertMerchantRow(agentId, salesmanId, req);
+    }
+
+    /**
+     * 校验新建门店请求（归属、经纬度、图片大小等），不落库。
+     */
+    public void assertCanInsertMerchantRow(long agentId, Long salesmanId, MerchantCreateRequest req) {
         if (salesmanId != null) {
             ensureSalesmanBelongsToAgent(salesmanId, agentId);
         }
@@ -111,15 +110,23 @@ public class AppBizDataService {
         if (req.getLongitude() == null || req.getLatitude() == null) {
             throw new IllegalArgumentException("请填写经纬度");
         }
+        String img = req.getStoreImageUrl();
+        if (img != null && img.length() > 8000) {
+            throw new IllegalArgumentException("店铺图片数据过大，请压缩或使用外链地址");
+        }
+    }
+
+    /**
+     * 写入新门店（主端/代理直建或审核通过时调用；不做角色校验）。
+     */
+    public Map<String, Object> insertMerchantRow(long agentId, Long salesmanId, MerchantCreateRequest req) {
+        assertCanInsertMerchantRow(agentId, salesmanId, req);
         final Long insertSalesmanId = salesmanId;
         BigDecimal oil = BigDecimal.valueOf(req.getOilUnitPrice() == null ? 0 : req.getOilUnitPrice());
         BigDecimal comm = BigDecimal.valueOf(req.getMerchantCommission() == null ? 0 : req.getMerchantCommission());
         BigDecimal lon = BigDecimal.valueOf(req.getLongitude());
         BigDecimal lat = BigDecimal.valueOf(req.getLatitude());
         String img = req.getStoreImageUrl();
-        if (img != null && img.length() > 8000) {
-            throw new IllegalArgumentException("店铺图片数据过大，请压缩或使用外链地址");
-        }
         GeneratedKeyHolder kh = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement(

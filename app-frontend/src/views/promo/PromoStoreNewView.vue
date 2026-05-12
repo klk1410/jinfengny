@@ -20,6 +20,7 @@ const district = ref("");
 const addressDetail = ref("");
 const salesmanId = ref("");
 const remark = ref("");
+const submitRemark = ref("");
 const storeImageUrl = ref("");
 const imagePreview = ref("");
 const agentId = ref("1");
@@ -29,6 +30,8 @@ const salesmen = ref([]);
 
 const roleCode = computed(() => shell.portal?.roleCode ?? "");
 const isMain = computed(() => roleCode.value === "main");
+/** 业务员、商家新增店铺走审核，不直接落库 */
+const needsCreateAudit = computed(() => roleCode.value === "sales" || roleCode.value === "merchant");
 
 async function loadPickers() {
   const oid = encodeURIComponent(shell.loginOpenid);
@@ -125,11 +128,19 @@ async function submit() {
     if (salesmanId.value) {
       body.salesmanId = Number(salesmanId.value);
     }
+    if (submitRemark.value.trim()) {
+      body.submitRemark = submitRemark.value.trim();
+    }
     const res = await requestJson("/app-api/biz/merchants", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     });
+    if (needsCreateAudit.value && res.auditId != null) {
+      window.alert(`已提交审核，审核单 #${res.auditId}。请等待主端或代理审批通过后门店生效。`);
+      router.push({ name: "promo-merchant-audits" });
+      return;
+    }
     window.alert(`提交成功，店铺 #${res.merchantId}`);
     router.push({ name: "promo-stores" });
   } catch (e) {
@@ -151,13 +162,12 @@ onMounted(() => {
     <div class="pf-card">
       <div class="pf-row">
         <div class="pf-label req">所属行业</div>
-        <div class="pf-field-wrap">
+        <div class="pf-field-wrap pf-field-wrap--select">
           <select v-model="industryType" class="pf-field">
             <option disabled value="">选择所属行业</option>
             <option v-for="o in industryOptions" :key="o" :value="o">{{ o }}</option>
           </select>
         </div>
-        <span class="pf-chevron">▼</span>
       </div>
 
       <div class="pf-row">
@@ -201,7 +211,6 @@ onMounted(() => {
           <input v-model="city" class="pf-field" type="text" placeholder="市" />
           <input v-model="district" class="pf-field" type="text" placeholder="区" />
         </div>
-        <span class="pf-chevron">▼</span>
       </div>
 
       <div class="pf-row">
@@ -213,7 +222,7 @@ onMounted(() => {
 
       <div class="pf-row">
         <div class="pf-label">业务员</div>
-        <div class="pf-field-wrap">
+        <div class="pf-field-wrap pf-field-wrap--select">
           <select v-model="salesmanId" class="pf-field">
             <option value="">选择业务员</option>
             <option v-for="s in salesmen" :key="s.salesmanId" :value="String(s.salesmanId)">
@@ -221,13 +230,19 @@ onMounted(() => {
             </option>
           </select>
         </div>
-        <span class="pf-chevron">›</span>
       </div>
 
       <div class="pf-row">
         <div class="pf-label">说明</div>
         <div class="pf-field-wrap">
           <input v-model="remark" class="pf-field" type="text" placeholder="请填写说明" />
+        </div>
+      </div>
+
+      <div v-if="needsCreateAudit" class="pf-row">
+        <div class="pf-label">审核说明</div>
+        <div class="pf-field-wrap">
+          <input v-model="submitRemark" class="pf-field" type="text" placeholder="选填，提交给审批方" />
         </div>
       </div>
 
@@ -250,7 +265,7 @@ onMounted(() => {
     </div>
 
     <div class="pf-footer">
-      <button type="button" class="pf-submit" @click="submit">提交</button>
+      <button type="button" class="pf-submit" @click="submit">{{ needsCreateAudit ? "提交审核" : "提交" }}</button>
     </div>
   </div>
 </template>

@@ -10,10 +10,12 @@ import com.envoil.app.model.AccessoryCreateRequest;
 import com.envoil.app.model.AccessoryTypeCreateRequest;
 import com.envoil.app.model.AgentCreateRequest;
 import com.envoil.app.model.SalesmanCreateRequest;
+import com.envoil.app.model.OpenidBizScope;
 import com.envoil.app.service.AppBizDataService;
 import com.envoil.app.service.AppDeviceEventAuditService;
 import com.envoil.app.service.AppDeviceEventService;
 import com.envoil.app.service.AppMerchantAuditService;
+import com.envoil.app.service.AppOpenidBizScopeService;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,16 +36,19 @@ public class AppBizController {
     private final AppDeviceEventService deviceEventService;
     private final AppDeviceEventAuditService deviceEventAuditService;
     private final AppMerchantAuditService merchantAuditService;
+    private final AppOpenidBizScopeService openidBizScopeService;
 
     public AppBizController(
             AppBizDataService bizDataService,
             AppDeviceEventService deviceEventService,
             AppDeviceEventAuditService deviceEventAuditService,
-            AppMerchantAuditService merchantAuditService) {
+            AppMerchantAuditService merchantAuditService,
+            AppOpenidBizScopeService openidBizScopeService) {
         this.bizDataService = bizDataService;
         this.deviceEventService = deviceEventService;
         this.deviceEventAuditService = deviceEventAuditService;
         this.merchantAuditService = merchantAuditService;
+        this.openidBizScopeService = openidBizScopeService;
     }
 
     @GetMapping("/merchants")
@@ -53,6 +58,10 @@ public class AppBizController {
 
     @PostMapping("/merchants")
     public ApiResponse<?> createMerchant(@Validated @RequestBody MerchantCreateRequest req) {
+        OpenidBizScope s = openidBizScopeService.resolve(req.getOpenid());
+        if (s.getUserRole() == '3' || s.getUserRole() == '4') {
+            return ApiResponse.ok(merchantAuditService.submitCreateAudit(req));
+        }
         return ApiResponse.ok(bizDataService.createMerchant(req));
     }
 

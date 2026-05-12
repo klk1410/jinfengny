@@ -241,12 +241,40 @@ onMounted(() => {
   flex: 1;
   min-width: 0;
   max-width: 100%;
-  border: 1px solid #d0d7e2;
-  border-radius: 6px;
-  padding: 6px 8px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 8px 34px 8px 10px;
   font-size: 12px;
-  background: #fff;
-  color: #1a1a1a;
+  line-height: 1.4;
+  background-color: #f8fafc;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%231f6dff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+  color: #0f172a;
+  outline: none;
+  box-sizing: border-box;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.dev-select:focus {
+  border-color: #3b82f6;
+  background-color: #fff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+.dev-select:disabled {
+  opacity: 0.72;
+  cursor: wait;
+  background-color: #f1f5f9;
+  border-color: #e2e8f0;
 }
 
 .dev-btn {
