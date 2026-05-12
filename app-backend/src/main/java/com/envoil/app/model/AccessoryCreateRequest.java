@@ -1,5 +1,6 @@
 package com.envoil.app.model;
 
+import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 
@@ -8,19 +9,26 @@ public class AccessoryCreateRequest {
     @NotBlank(message = "openid不能为空")
     private String openid;
 
-    /** 主端创建时必填 */
-    private Long agentId;
-
     private Long merchantId;
 
-    @NotBlank(message = "配件名称不能为空")
-    private String accessoryName;
+    @NotNull(message = "配件种类不能为空")
+    private Long typeId;
+
+    @NotNull(message = "入库成本不能为空")
+    @Min(value = 0, message = "入库成本不能小于0")
+    private Double inboundCost;
+
+    private String accCode;
 
     @NotNull(message = "数量不能为空")
+    @Min(value = 1, message = "数量须大于0")
     private Double qty;
 
-    @NotNull(message = "单价不能为空")
-    private Double unitPrice;
+    /**
+     * AGENT = 代理本人；SALESMAN:{id} = 业务员（须属于当前代理）。
+     */
+    @NotBlank(message = "入库操作人员不能为空")
+    private String operatorKey;
 
     private String remark;
 
@@ -32,14 +40,6 @@ public class AccessoryCreateRequest {
         this.openid = openid;
     }
 
-    public Long getAgentId() {
-        return agentId;
-    }
-
-    public void setAgentId(Long agentId) {
-        this.agentId = agentId;
-    }
-
     public Long getMerchantId() {
         return merchantId;
     }
@@ -48,12 +48,28 @@ public class AccessoryCreateRequest {
         this.merchantId = merchantId;
     }
 
-    public String getAccessoryName() {
-        return accessoryName;
+    public Long getTypeId() {
+        return typeId;
     }
 
-    public void setAccessoryName(String accessoryName) {
-        this.accessoryName = accessoryName;
+    public void setTypeId(Long typeId) {
+        this.typeId = typeId;
+    }
+
+    public Double getInboundCost() {
+        return inboundCost;
+    }
+
+    public void setInboundCost(Double inboundCost) {
+        this.inboundCost = inboundCost;
+    }
+
+    public String getAccCode() {
+        return accCode;
+    }
+
+    public void setAccCode(String accCode) {
+        this.accCode = accCode;
     }
 
     public Double getQty() {
@@ -64,12 +80,12 @@ public class AccessoryCreateRequest {
         this.qty = qty;
     }
 
-    public Double getUnitPrice() {
-        return unitPrice;
+    public String getOperatorKey() {
+        return operatorKey;
     }
 
-    public void setUnitPrice(Double unitPrice) {
-        this.unitPrice = unitPrice;
+    public void setOperatorKey(String operatorKey) {
+        this.operatorKey = operatorKey;
     }
 
     public String getRemark() {
@@ -80,4 +96,3 @@ public class AccessoryCreateRequest {
         this.remark = remark;
     }
 }
-

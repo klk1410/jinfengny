@@ -1,56 +1,81 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { requestJson } from "../api.js";
 
 const shell = inject("appShell");
+const router = useRouter();
 const roleCode = computed(() => shell.portal?.roleCode ?? "");
-const rows = ref([]);
+const summary = ref([]);
+const types = ref([]);
+const operators = ref([]);
 const merchants = ref([]);
 const err = ref("");
 const form = ref({
-  agentId: "",
   merchantId: "",
-  accName: "",
+  typeId: "",
+  inboundCost: 0,
+  accCode: "",
   qty: 1,
-  unitPrice: 0,
+  operatorKey: "",
   remark: ""
 });
 
-const canCreate = computed(() => roleCode.value === "main" || roleCode.value === "agent" || roleCode.value === "sales");
-const isMain = computed(() => roleCode.value === "main");
+const canCreate = computed(() => roleCode.value === "agent" || roleCode.value === "sales");
 
 async function load() {
   err.value = "";
   try {
     const oid = encodeURIComponent(shell.loginOpenid);
-    const [acc, ms] = await Promise.all([
+    const [sum, tp, ms] = await Promise.all([
       requestJson(`/app-api/biz/accessories?openid=${oid}`),
+      requestJson("/app-api/biz/accessory-types"),
       requestJson(`/app-api/biz/merchants?openid=${oid}`)
     ]);
-    rows.value = acc || [];
+    summary.value = sum || [];
+    types.value = tp || [];
     merchants.value = ms || [];
+    if (canCreate.value) {
+      operators.value = await requestJson(`/app-api/biz/accessory-operators?openid=${oid}`);
+      if (!form.value.operatorKey && operators.value.length) {
+        form.value.operatorKey = operators.value[0].operatorKey;
+      }
+    } else {
+      operators.value = [];
+    }
   } catch (e) {
     err.value = e.message || String(e);
-    rows.value = [];
+    summary.value = [];
+    types.value = [];
     merchants.value = [];
   }
+}
+
+function openType(row) {
+  router.push({ name: "accessory-type-detail", params: { typeId: String(row.typeId) } });
 }
 
 async function onCreate() {
   err.value = "";
   try {
-    if (!form.value.accName.trim()) {
-      throw new Error("请填写配件名称");
+    const tid = Number(form.value.typeId);
+    if (!tid) {
+      throw new Error("请选择配件种类");
+    }
+    if (!form.value.operatorKey) {
+      throw new Error("请选择入库操作人员");
     }
     const body = {
       openid: shell.loginOpenid,
-      accessoryName: form.value.accName.trim(),
+      typeId: tid,
+      inboundCost: Number(form.value.inboundCost),
       qty: Number(form.value.qty),
-      unitPrice: Number(form.value.unitPrice),
+      operatorKey: form.value.operatorKey,
       remark: form.value.remark.trim() || null
     };
-    if (isMain.value) {
-      body.agentId = Number(form.value.agentId);
+    const code = form.value.accCode.trim();
+    if (code) {
+      body.accCode = code;
     }
     if (form.value.merchantId) {
       body.merchantId = Number(form.value.merchantId);
@@ -60,9 +85,9 @@ async function onCreate() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     });
-    form.value.accName = "";
+    form.value.inboundCost = 0;
+    form.value.accCode = "";
     form.value.qty = 1;
-    form.value.unitPrice = 0;
     form.value.remark = "";
     await load();
   } catch (e) {
@@ -80,49 +105,56 @@ onMounted(load);
     <p v-if="err" class="err">{{ err }}</p>
 
     <div v-if="canCreate" class="card">
-      <h3 class="sub">新增配件记录</h3>
-      <div v-if="isMain" class="row">
-        <label>代理 ID</label>
-        <input v-model="form.agentId" class="inp" type="number" min="1" />
-      </div>
+      <h3 class="sub">配件入库</h3>
       <div class="row">
         <label>关联门店</label>
         <select v-model="form.merchantId" class="inp">
-          <option value="">无（代理级）</option>
+          <option value="">无（代理级库存）</option>
           <option v-for="m in merchants" :key="m.merchantId" :value="String(m.merchantId)">
-            {{ m.merchantName }}
+            {{ m.merchantName }}（{{ m.merchantId }}）
           </option>
         </select>
       </div>
       <div class="row">
-        <label>配件名称</label>
-        <input v-model="form.accName" class="inp" type="text" />
+        <label>种类</label>
+        <select v-model="form.typeId" class="inp">
+          <option disabled value="">请选择</option>
+          <option v-for="t in types" :key="t.typeId" :value="String(t.typeId)">{{ t.typeName }}</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>入库成本</label>
+        <input v-model.number="form.inboundCost" class="inp" type="number" min="0" step="0.01" />
+      </div>
+      <div class="row">
+        <label>配件编号</label>
+        <input v-model="form.accCode" class="inp" type="text" placeholder="选填" />
       </div>
       <div class="row">
         <label>数量</label>
         <input v-model.number="form.qty" class="inp" type="number" min="0.01" step="0.01" />
       </div>
       <div class="row">
-        <label>单价</label>
-        <input v-model.number="form.unitPrice" class="inp" type="number" min="0" step="0.01" />
+        <label>操作人员</label>
+        <select v-model="form.operatorKey" class="inp">
+          <option v-for="o in operators" :key="o.operatorKey" :value="o.operatorKey">{{ o.label }}</option>
+        </select>
       </div>
       <div class="row">
         <label>备注</label>
         <input v-model="form.remark" class="inp" type="text" />
       </div>
-      <button type="button" class="btn" @click="onCreate">提交</button>
+      <button type="button" class="btn" @click="onCreate">提交入库</button>
     </div>
 
     <div class="card">
-      <h3 class="sub">配件列表</h3>
-      <div v-if="!rows.length" class="muted">暂无数据</div>
-      <div v-for="(r, i) in rows" :key="i" class="item">
-        <div class="line strong">{{ r.accName }}</div>
-        <div class="line">数量 {{ r.qty }} · 单价 ¥{{ r.unitPrice }} · 金额 ¥{{ r.amount }}</div>
-        <div class="line muted">代理 #{{ r.agentId }} · 门店 {{ r.merchantName || r.merchantId || "—" }}</div>
-        <div v-if="r.remark" class="line muted">{{ r.remark }}</div>
-        <div class="line muted">{{ r.createTime }}</div>
-      </div>
+      <h3 class="sub">按种类库存</h3>
+      <p class="hint">点击查看该种类入库明细</p>
+      <div v-if="!summary.length" class="muted">暂无数据</div>
+      <button v-for="(r, i) in summary" :key="i" type="button" class="sum-row" @click="openType(r)">
+        <span class="sum-name">{{ r.typeName }}</span>
+        <span class="sum-meta">数量 {{ r.qtyTotal }} · 成本 ¥{{ r.costTotal }} · {{ r.lineCount }} 笔</span>
+      </button>
     </div>
   </div>
 </template>
@@ -136,6 +168,11 @@ onMounted(load);
 .err {
   color: #b91c1c;
   font-size: 13px;
+}
+.hint {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: #94a3b8;
 }
 .muted {
   color: #64748b;
@@ -154,7 +191,7 @@ onMounted(load);
 }
 .row {
   display: grid;
-  grid-template-columns: 72px 1fr;
+  grid-template-columns: 84px 1fr;
   gap: 8px;
   align-items: center;
   margin-bottom: 8px;
@@ -176,20 +213,30 @@ onMounted(load);
   font-size: 13px;
   cursor: pointer;
 }
-.item {
-  border-top: 1px solid #eef1f6;
-  padding: 10px 0;
-  font-size: 12px;
+.sum-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  font-size: 13px;
 }
-.item:first-of-type {
-  border-top: none;
-  padding-top: 0;
+.sum-row:last-child {
+  margin-bottom: 0;
 }
-.line {
-  margin-top: 4px;
-}
-.strong {
+.sum-name {
   font-weight: 600;
+  color: #0f172a;
+}
+.sum-meta {
+  font-size: 12px;
+  color: #64748b;
 }
 </style>
-

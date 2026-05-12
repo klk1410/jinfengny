@@ -39,7 +39,19 @@ public class AppBizOrderService {
 
     public Map<String, Object> createOrder(OrderCreateRequest request) {
         OpenidBizScope scope = scopeService.resolve(request.getOpenid());
-        Map<String, Object> merchant = loadMerchant(request.getMerchantId());
+        long merchantId;
+        if (scope.getUserRole() == '4') {
+            if (scope.getMerchantId() == null) {
+                throw new IllegalArgumentException("未绑定商家");
+            }
+            merchantId = scope.getMerchantId();
+        } else {
+            if (request.getMerchantId() == null) {
+                throw new IllegalArgumentException("请选择商家");
+            }
+            merchantId = request.getMerchantId();
+        }
+        Map<String, Object> merchant = loadMerchant(merchantId);
         if (merchant == null) {
             throw new IllegalArgumentException("商家不存在");
         }
@@ -48,8 +60,22 @@ public class AppBizOrderService {
         }
         char orderType = parseOrderType(request.getOrderType());
         char payType = parsePayType(request.getPayType());
-        BigDecimal unit = BigDecimal.valueOf(request.getUnitPrice()).setScale(2, RoundingMode.HALF_UP);
         BigDecimal buckets = BigDecimal.valueOf(request.getBucketCount()).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal unit;
+        if (orderType == '1') {
+            Object ou = merchant.get("oil_unit_price");
+            unit = ou == null
+                    ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                    : new BigDecimal(ou.toString()).setScale(2, RoundingMode.HALF_UP);
+            if (request.getUnitPrice() != null && scope.getUserRole() != '4') {
+                unit = BigDecimal.valueOf(request.getUnitPrice()).setScale(2, RoundingMode.HALF_UP);
+            }
+        } else {
+            unit = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+            if (buckets.compareTo(BigDecimal.ZERO) <= 0) {
+                buckets = BigDecimal.ONE;
+            }
+        }
         BigDecimal amountTotal = unit.multiply(buckets).setScale(2, RoundingMode.HALF_UP);
         BigDecimal discount = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         BigDecimal amountPayable = amountTotal.subtract(discount).setScale(2, RoundingMode.HALF_UP);
@@ -62,7 +88,7 @@ public class AppBizOrderService {
                         + "oil_bucket_count, amount_total, discount_amount, amount_payable, status, agent_id, pay_type, del_flag) "
                         + "VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, '0', ?, ?, '0')",
                 orderNo,
-                request.getMerchantId(),
+                merchantId,
                 String.valueOf(orderType),
                 unit,
                 buckets,
@@ -79,7 +105,7 @@ public class AppBizOrderService {
         OpenidBizScope scope = scopeService.resolve(openid);
         StringBuilder sql = new StringBuilder()
                 .append("SELECT o.order_no, m.merchant_name, o.order_type, o.status AS st, o.pay_type, ")
-                .append("o.amount_payable, o.order_time, o.work_order_no ")
+                .append("o.amount_payable, o.order_time, o.work_order_no, o.oil_bucket_count ")
                 .append("FROM biz_env_order o ")
                 .append("JOIN biz_env_merchant m ON m.merchant_id = o.merchant_id AND m.del_flag = '0' ")
                 .append("WHERE o.del_flag = '0' ");
@@ -95,6 +121,8 @@ public class AppBizOrderService {
             row.put("status", labelOrderStatus(rs.getString("st")));
             row.put("payType", labelPayType(rs.getString("pay_type")));
             row.put("amountPayable", rs.getBigDecimal("amount_payable").doubleValue());
+            row.put("bucketCount", rs.getBigDecimal("oil_bucket_count").doubleValue());
+            row.put("orderTypeCode", rs.getString("order_type"));
             row.put("createTime", formatTs(rs.getTimestamp("order_time")));
             row.put("workOrderNo", rs.getString("work_order_no"));
             return row;
@@ -328,7 +356,8 @@ public class AppBizOrderService {
 
     private Map<String, Object> loadMerchant(long merchantId) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT merchant_id, agent_id, salesman_id FROM biz_env_merchant WHERE merchant_id = ? AND del_flag = '0'",
+                "SELECT merchant_id, agent_id, salesman_id, oil_unit_price FROM biz_env_merchant "
+                        + "WHERE merchant_id = ? AND del_flag = '0'",
                 merchantId);
         return rows.isEmpty() ? null : rows.get(0);
     }
@@ -421,10 +450,10 @@ public class AppBizOrderService {
             throw new IllegalArgumentException("支付方式无效");
         }
         String s = raw.trim();
-        if ("1".equals(s) || "现结".equals(s)) {
+        if ("1".equals(s) || "现结".equals(s) || "微信支付".equals(s)) {
             return '1';
         }
-        if ("2".equals(s) || "赊欠".equals(s)) {
+        if ("2".equals(s) || "赊欠".equals(s) || "赊销".equals(s)) {
             return '2';
         }
         throw new IllegalArgumentException("支付方式无效");
@@ -461,10 +490,10 @@ public class AppBizOrderService {
 
     private static String labelPayType(String code) {
         if ("1".equals(code)) {
-            return "现结";
+            return "微信支付";
         }
         if ("2".equals(code)) {
-            return "赊欠";
+            return "赊销";
         }
         return code == null ? "" : code;
     }

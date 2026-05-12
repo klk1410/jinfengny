@@ -31,7 +31,8 @@ onMounted(load);
         <div class="line strong">{{ d.deviceNo }}</div>
         <div class="line">{{ d.deviceType }} · {{ d.deviceStatus }}</div>
         <div class="line muted">
-          门店 {{ d.merchantName || "—" }} · 代理 #{{ d.agentId }}
+          门店 {{ d.merchantName || "—" }}{{ d.merchantId != null ? "（" + d.merchantId + "）" : "" }} · 代理
+          {{ d.agentName ? d.agentName + "（" + d.agentId + "）" : "#" + d.agentId }}
         </div>
       </div>
     </div>

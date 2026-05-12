@@ -76,7 +76,7 @@ onMounted(load);
           <span class="no">{{ o.orderNo }}</span>
           <span class="st">{{ o.status }}</span>
         </div>
-        <div class="item-mid">{{ o.merchantName }} · {{ o.orderType }} · {{ o.payType }}</div>
+        <div class="item-mid">{{ o.merchantName }} · {{ o.orderType }}{{ o.bucketCount != null && (o.orderTypeCode === '1' || o.orderType === '加油') ? ' · ' + o.bucketCount + ' 桶' : '' }} · {{ o.payType }}</div>
         <div v-if="o.workOrderNo" class="item-mid muted">工单 {{ o.workOrderNo }}</div>
         <div class="item-bot">
           <span>¥{{ o.amountPayable }}</span>

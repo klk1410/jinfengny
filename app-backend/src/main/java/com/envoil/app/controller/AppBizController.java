@@ -55,8 +55,21 @@ public class AppBizController {
     }
 
     @GetMapping("/accessories")
-    public ApiResponse<?> accessories(@RequestParam String openid) {
-        return ApiResponse.ok(bizDataService.listAccessories(openid));
+    public ApiResponse<?> accessories(@RequestParam String openid, @RequestParam(required = false) Long typeId) {
+        if (typeId == null) {
+            return ApiResponse.ok(bizDataService.listAccessorySummaryByType(openid));
+        }
+        return ApiResponse.ok(bizDataService.listAccessoryLinesByType(openid, typeId));
+    }
+
+    @GetMapping("/accessory-types")
+    public ApiResponse<?> accessoryTypes() {
+        return ApiResponse.ok(bizDataService.listAccessoryTypes());
+    }
+
+    @GetMapping("/accessory-operators")
+    public ApiResponse<?> accessoryOperators(@RequestParam String openid) {
+        return ApiResponse.ok(bizDataService.listAccessoryInboundOperators(openid));
     }
 
     @PostMapping("/accessories")

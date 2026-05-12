@@ -32,6 +32,9 @@ const summary = ref({});
 const merchants = ref([]);
 const orders = ref([]);
 
+const accTypes = ref([]);
+const newAccType = ref({ typeName: "", sortOrder: 0 });
+
 const loggedIn = computed(() => !!token.value);
 
 function authHeaders() {
@@ -204,6 +207,25 @@ async function loadDashboard() {
   orders.value = await requestJson("/prod-api/admin/order/list");
 }
 
+async function loadAccTypes() {
+  accTypes.value = await requestJson("/prod-api/admin/biz/accessory-types");
+}
+
+async function createAccType() {
+  await requestJson("/prod-api/admin/biz/accessory-types", {
+    method: "POST",
+    body: JSON.stringify({ typeName: newAccType.value.typeName, sortOrder: Number(newAccType.value.sortOrder) || 0 })
+  });
+  newAccType.value = { typeName: "", sortOrder: 0 };
+  await loadAccTypes();
+}
+
+async function deleteAccType(id) {
+  if (!confirm("删除该种类？（软删除，已入库记录仍关联旧种类）")) return;
+  await requestJson(`/prod-api/admin/biz/accessory-types/${id}`, { method: "DELETE" });
+  await loadAccTypes();
+}
+
 onMounted(() => {
   if (loggedIn.value) {
     refreshAll().catch((e) => alert(e.message));
@@ -242,6 +264,12 @@ onMounted(() => {
         <button :class="{ active: tab === 'sub' }" @click="tab = 'sub'">openid 绑定</button>
         <button :class="{ active: tab === 'dash' }" @click="tab = 'dash'; loadDashboard().catch((e) => alert(e.message))">
           看板 Mock
+        </button>
+        <button
+          :class="{ active: tab === 'acc' }"
+          @click="tab = 'acc'; loadAccTypes().catch((e) => alert(e.message))"
+        >
+          配件种类
         </button>
       </nav>
 
@@ -336,6 +364,34 @@ onMounted(() => {
               <td class="mono">{{ s.openid }}</td>
               <td>{{ s.roleName }}</td>
               <td><button class="text-btn danger" @click="delSubject(s.openid)">删</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section v-show="tab === 'acc'" class="card">
+        <h2>配件种类</h2>
+        <p class="muted">小程序入库时下拉选项来源于此表。</p>
+        <div class="inline-form">
+          <input v-model="newAccType.typeName" placeholder="种类名称" />
+          <input v-model.number="newAccType.sortOrder" type="number" placeholder="排序" class="w-sm" />
+          <button class="btn" @click="createAccType().catch((e) => alert(e.message))">添加</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>名称</th>
+              <th>排序</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="t in accTypes" :key="t.typeId">
+              <td>{{ t.typeId }}</td>
+              <td>{{ t.typeName }}</td>
+              <td>{{ t.sortOrder }}</td>
+              <td><button class="text-btn danger" @click="deleteAccType(t.typeId)">删</button></td>
             </tr>
           </tbody>
         </table>

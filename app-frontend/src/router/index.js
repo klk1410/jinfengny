@@ -10,13 +10,25 @@ export const router = createRouter({
       children: [
         { path: "", name: "home", component: () => import("../views/Home.vue") },
         { path: "blank", name: "blank", meta: { headerTitle: "功能建设中" }, component: () => import("../views/PlaceholderBlank.vue") },
-        { path: "orders", name: "orders", meta: { headerTitle: "我的订单" }, component: () => import("../views/OrdersView.vue") },
+        { path: "orders", name: "orders", meta: { headerTitle: "订单查询" }, component: () => import("../views/OrdersView.vue") },
+        {
+          path: "order/submit",
+          name: "order-submit",
+          meta: { headerTitle: "提交订单" },
+          component: () => import("../views/OrderSubmitView.vue")
+        },
         { path: "order/stats", name: "order-stats", meta: { headerTitle: "订单统计" }, component: () => import("../views/OrderStatsView.vue") },
         { path: "merchants", name: "merchants", meta: { headerTitle: "商家" }, component: () => import("../views/MerchantsView.vue") },
         { path: "agents", name: "agents", meta: { headerTitle: "代理" }, component: () => import("../views/AgentsView.vue") },
         { path: "salesmen", name: "salesmen", meta: { headerTitle: "业务员" }, component: () => import("../views/SalesmenView.vue") },
         { path: "devices", name: "devices", meta: { headerTitle: "设备" }, component: () => import("../views/DevicesView.vue") },
         { path: "accessories", name: "accessories", meta: { headerTitle: "配件管理" }, component: () => import("../views/AccessoriesView.vue") },
+        {
+          path: "accessories/type/:typeId",
+          name: "accessory-type-detail",
+          meta: { headerTitle: "配件明细" },
+          component: () => import("../views/AccessoryTypeDetailView.vue")
+        },
         { path: "work-orders", name: "work-orders", meta: { headerTitle: "工单" }, component: () => import("../views/WorkOrdersView.vue") },
         { path: "stock", name: "stock", meta: { headerTitle: "仓储库存" }, component: () => import("../views/StockView.vue") },
         { path: "ledger", name: "ledger", meta: { headerTitle: "账目流水" }, component: () => import("../views/LedgerView.vue") },

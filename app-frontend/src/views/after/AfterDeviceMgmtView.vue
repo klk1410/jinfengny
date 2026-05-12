@@ -36,7 +36,10 @@ onMounted(load);
       <div v-for="(d, i) in rows" :key="i" class="pf-item">
         <div class="pf-line-strong">{{ d.deviceNo }}</div>
         <div class="pf-line-muted">{{ d.deviceType }} · {{ d.deviceStatus }}</div>
-        <div class="pf-line-muted">门店 {{ d.merchantName || "—" }} · 代理 #{{ d.agentId }}</div>
+        <div class="pf-line-muted">
+          门店 {{ d.merchantName || "—" }}{{ d.merchantId != null ? "（" + d.merchantId + "）" : "" }} · 代理
+          {{ d.agentName || "#" + d.agentId }}{{ d.agentId != null ? "（" + d.agentId + "）" : "" }}
+        </div>
       </div>
     </div>
   </div>

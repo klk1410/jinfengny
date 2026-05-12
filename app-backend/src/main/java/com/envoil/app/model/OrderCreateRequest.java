@@ -9,14 +9,13 @@ public class OrderCreateRequest {
     @NotBlank(message = "openid不能为空")
     private String openid;
 
-    @NotNull(message = "商家ID不能为空")
+    /** 非商家角色下单时必填；商家端由服务端绑定当前门店，可省略 */
     private Long merchantId;
 
     @NotBlank(message = "订单类型不能为空")
     private String orderType;
 
-    @NotNull(message = "单价不能为空")
-    @Min(value = 0, message = "单价不能小于0")
+    /** 可选；加油单服务端按门店油价计算，可不传 */
     private Double unitPrice;
 
     @NotNull(message = "数量不能为空")

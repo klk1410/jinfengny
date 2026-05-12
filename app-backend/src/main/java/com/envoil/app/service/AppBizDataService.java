@@ -9,6 +9,7 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
@@ -258,9 +259,11 @@ public class AppBizDataService {
     public List<Map<String, Object>> listDevices(String openid) {
         OpenidBizScope s = scopeService.resolve(openid);
         StringBuilder sql = new StringBuilder()
-                .append("SELECT d.device_id, d.device_no, d.device_type, d.device_status, d.merchant_id, m.merchant_name, d.agent_id ")
+                .append("SELECT d.device_id, d.device_no, d.device_type, d.device_status, d.merchant_id, ")
+                .append("m.merchant_name, d.agent_id, ag.agent_name ")
                 .append("FROM biz_env_device d ")
                 .append("LEFT JOIN biz_env_merchant m ON m.merchant_id = d.merchant_id AND m.del_flag = '0' ")
+                .append("LEFT JOIN biz_env_agent ag ON ag.agent_id = d.agent_id AND ag.del_flag = '0' ")
                 .append("WHERE d.del_flag = '0' ");
         List<Object> args = new ArrayList<>();
         if (s.getUserRole() == '1') {
@@ -293,21 +296,202 @@ public class AppBizDataService {
             row.put("merchantId", rs.getObject("merchant_id") == null ? null : rs.getLong("merchant_id"));
             row.put("merchantName", rs.getString("merchant_name"));
             row.put("agentId", rs.getLong("agent_id"));
+            row.put("agentName", rs.getString("agent_name"));
             return row;
         });
     }
 
-    public List<Map<String, Object>> listAccessories(String openid) {
+    /**
+     * 配件：按种类汇总库存（代理维度；主端全量；商家见本代理下与本店相关记录）。
+     */
+    public List<Map<String, Object>> listAccessorySummaryByType(String openid) {
         OpenidBizScope s = scopeService.resolve(openid);
         StringBuilder sql = new StringBuilder()
-                .append("SELECT a.acc_id, a.agent_id, a.merchant_id, m.merchant_name, a.acc_name, a.qty, a.unit_price, a.remark, a.create_time ")
+                .append("SELECT a.type_id, t.type_name, t.sort_order, ")
+                .append("SUM(a.qty) AS qty_total, SUM(a.inbound_cost) AS cost_total, COUNT(*) AS line_count ")
                 .append("FROM biz_env_accessory a ")
-                .append("LEFT JOIN biz_env_merchant m ON m.merchant_id = a.merchant_id AND m.del_flag = '0' ")
+                .append("JOIN biz_env_accessory_type t ON t.type_id = a.type_id AND t.del_flag = '0' ")
                 .append("WHERE a.del_flag = '0' ");
         List<Object> args = new ArrayList<>();
+        appendAccessoryScope(sql, args, s);
+        sql.append(" GROUP BY a.type_id, t.type_name, t.sort_order ORDER BY t.sort_order, a.type_id");
+        return jdbcTemplate.query(sql.toString(), args.toArray(), (rs, i) -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("typeId", rs.getLong("type_id"));
+            row.put("typeName", rs.getString("type_name"));
+            row.put("qtyTotal", rs.getBigDecimal("qty_total").doubleValue());
+            row.put("costTotal", rs.getBigDecimal("cost_total").doubleValue());
+            row.put("lineCount", rs.getLong("line_count"));
+            return row;
+        });
+    }
+
+    /**
+     * 某种类下的入库明细。
+     */
+    public List<Map<String, Object>> listAccessoryLinesByType(String openid, long typeId) {
+        OpenidBizScope s = scopeService.resolve(openid);
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT a.acc_id, a.agent_id, a.merchant_id, m.merchant_name, t.type_name, ")
+                .append("a.acc_code, a.qty, a.inbound_cost, a.remark, a.create_time, a.operator_kind, a.operator_id, ")
+                .append("CASE WHEN a.operator_kind = '3' THEN sm.salesman_name ELSE ag.agent_name END AS operator_label ")
+                .append("FROM biz_env_accessory a ")
+                .append("JOIN biz_env_accessory_type t ON t.type_id = a.type_id AND t.del_flag = '0' ")
+                .append("LEFT JOIN biz_env_merchant m ON m.merchant_id = a.merchant_id AND m.del_flag = '0' ")
+                .append("LEFT JOIN biz_env_agent ag ON ag.agent_id = a.agent_id AND ag.del_flag = '0' ")
+                .append("LEFT JOIN biz_env_salesman sm ON a.operator_kind = '3' AND sm.salesman_id = a.operator_id AND sm.del_flag = '0' ")
+                .append("WHERE a.del_flag = '0' AND a.type_id = ? ");
+        List<Object> args = new ArrayList<>();
+        args.add(typeId);
+        appendAccessoryScope(sql, args, s);
+        sql.append(" ORDER BY a.acc_id DESC");
+        return jdbcTemplate.query(sql.toString(), args.toArray(), (rs, i) -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("accId", rs.getLong("acc_id"));
+            row.put("agentId", rs.getLong("agent_id"));
+            row.put("merchantId", rs.getObject("merchant_id") == null ? null : rs.getLong("merchant_id"));
+            row.put("merchantName", rs.getString("merchant_name"));
+            row.put("typeName", rs.getString("type_name"));
+            row.put("accCode", rs.getString("acc_code"));
+            row.put("qty", rs.getBigDecimal("qty").doubleValue());
+            row.put("inboundCost", rs.getBigDecimal("inbound_cost").doubleValue());
+            row.put("remark", rs.getString("remark"));
+            row.put("createTime", formatTs(rs.getTimestamp("create_time")));
+            row.put("operatorLabel", rs.getString("operator_label"));
+            return row;
+        });
+    }
+
+    public List<Map<String, Object>> listAccessoryTypes() {
+        return jdbcTemplate.query(
+                "SELECT type_id, type_name, sort_order FROM biz_env_accessory_type WHERE del_flag = '0' ORDER BY sort_order, type_id",
+                (rs, i) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("typeId", rs.getLong("type_id"));
+                    row.put("typeName", rs.getString("type_name"));
+                    row.put("sortOrder", rs.getInt("sort_order"));
+                    return row;
+                });
+    }
+
+    /**
+     * 入库操作人员下拉：当前代理及其下属业务员（代理账号、业务员账号使用）。
+     */
+    public List<Map<String, Object>> listAccessoryInboundOperators(String openid) {
+        OpenidBizScope s = scopeService.resolve(openid);
+        char r = s.getUserRole();
+        if ((r != '2' && r != '3') || s.getAgentId() == null) {
+            return new ArrayList<>();
+        }
+        long agentId = s.getAgentId();
+        List<Map<String, Object>> out = new ArrayList<>();
+        List<String> agentNames = jdbcTemplate.queryForList(
+                "SELECT agent_name FROM biz_env_agent WHERE agent_id = ? AND del_flag = '0'",
+                String.class,
+                agentId);
+        if (!agentNames.isEmpty()) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("operatorKey", "AGENT");
+            row.put("label", "代理：" + agentNames.get(0));
+            out.add(row);
+        }
+        List<Map<String, Object>> sms = jdbcTemplate.query(
+                "SELECT salesman_id, salesman_name FROM biz_env_salesman WHERE agent_id = ? AND del_flag = '0' ORDER BY salesman_id",
+                (rs, i) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    long sid = rs.getLong("salesman_id");
+                    row.put("operatorKey", "SALESMAN:" + sid);
+                    row.put("label", "业务员：" + rs.getString("salesman_name"));
+                    return row;
+                },
+                agentId);
+        out.addAll(sms);
+        return out;
+    }
+
+    public void createAccessory(AccessoryCreateRequest req) {
+        OpenidBizScope s = scopeService.resolve(req.getOpenid());
+        char r = s.getUserRole();
+        if (r != '2' && r != '3') {
+            throw new IllegalArgumentException("仅代理或业务员可登记配件入库");
+        }
+        if (s.getAgentId() == null) {
+            throw new IllegalArgumentException("未绑定代理");
+        }
+        long agentId = s.getAgentId();
+        Long mid = req.getMerchantId();
+        if (mid != null) {
+            Integer n = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM biz_env_merchant WHERE merchant_id = ? AND agent_id = ? AND del_flag = '0'",
+                    Integer.class,
+                    mid,
+                    agentId);
+            if (n == null || n == 0) {
+                throw new IllegalArgumentException("门店不属于该代理");
+            }
+        }
+        Integer typeOk = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM biz_env_accessory_type WHERE type_id = ? AND del_flag = '0'",
+                Integer.class,
+                req.getTypeId());
+        if (typeOk == null || typeOk == 0) {
+            throw new IllegalArgumentException("配件种类无效");
+        }
+        String typeName = jdbcTemplate.queryForObject(
+                "SELECT type_name FROM biz_env_accessory_type WHERE type_id = ? AND del_flag = '0'",
+                String.class,
+                req.getTypeId());
+        BigDecimal qty = BigDecimal.valueOf(req.getQty() == null ? 0 : req.getQty());
+        if (qty.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("数量须大于0");
+        }
+        BigDecimal inboundCost = BigDecimal.valueOf(req.getInboundCost() == null ? 0 : req.getInboundCost())
+                .setScale(2, RoundingMode.HALF_UP);
+        if (inboundCost.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("入库成本不能小于0");
+        }
+        BigDecimal unitPrice = qty.compareTo(BigDecimal.ZERO) > 0
+                ? inboundCost.divide(qty, 6, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
+        char operatorKind;
+        Long operatorId = null;
+        String opKey = req.getOperatorKey() == null ? "" : req.getOperatorKey().trim();
+        if ("AGENT".equalsIgnoreCase(opKey)) {
+            operatorKind = '2';
+        } else if (opKey.regionMatches(true, 0, "SALESMAN:", 0, 9)) {
+            long sid = Long.parseLong(opKey.substring(9).trim());
+            ensureSalesmanBelongsToAgent(sid, agentId);
+            operatorKind = '3';
+            operatorId = sid;
+        } else {
+            throw new IllegalArgumentException("入库操作人员无效");
+        }
+        String accCode = req.getAccCode() == null ? null : req.getAccCode().trim();
+        if (accCode != null && accCode.isEmpty()) {
+            accCode = null;
+        }
+        jdbcTemplate.update(
+                "INSERT INTO biz_env_accessory (agent_id, merchant_id, type_id, acc_name, acc_code, qty, unit_price, "
+                        + "inbound_cost, operator_kind, operator_id, remark, del_flag) "
+                        + "VALUES (?,?,?,?,?,?,?,?,?,?,?,'0')",
+                agentId,
+                mid,
+                req.getTypeId(),
+                typeName,
+                accCode,
+                qty,
+                unitPrice,
+                inboundCost,
+                String.valueOf(operatorKind),
+                operatorId,
+                req.getRemark());
+    }
+
+    private void appendAccessoryScope(StringBuilder sql, List<Object> args, OpenidBizScope s) {
         if (s.getUserRole() == '1') {
-            // all
-        } else if (s.getUserRole() == '2' || s.getUserRole() == '3') {
+            return;
+        }
+        if (s.getUserRole() == '2' || s.getUserRole() == '3') {
             if (s.getAgentId() == null) {
                 sql.append(" AND 1 = 0");
             } else {
@@ -325,64 +509,6 @@ public class AppBizDataService {
         } else {
             sql.append(" AND 1 = 0");
         }
-        sql.append(" ORDER BY a.acc_id DESC");
-        return jdbcTemplate.query(sql.toString(), args.toArray(), (rs, i) -> {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("accId", rs.getLong("acc_id"));
-            row.put("agentId", rs.getLong("agent_id"));
-            row.put("merchantId", rs.getObject("merchant_id") == null ? null : rs.getLong("merchant_id"));
-            row.put("merchantName", rs.getString("merchant_name"));
-            row.put("accName", rs.getString("acc_name"));
-            row.put("qty", rs.getBigDecimal("qty").doubleValue());
-            row.put("unitPrice", rs.getBigDecimal("unit_price").doubleValue());
-            row.put("amount", rs.getBigDecimal("qty").multiply(rs.getBigDecimal("unit_price")).doubleValue());
-            row.put("remark", rs.getString("remark"));
-            row.put("createTime", formatTs(rs.getTimestamp("create_time")));
-            return row;
-        });
-    }
-
-    public void createAccessory(AccessoryCreateRequest req) {
-        OpenidBizScope s = scopeService.resolve(req.getOpenid());
-        char r = s.getUserRole();
-        if (r != '1' && r != '2' && r != '3') {
-            throw new IllegalArgumentException("无权限新增配件");
-        }
-        long agentId;
-        if (r == '1') {
-            if (req.getAgentId() == null) {
-                throw new IllegalArgumentException("主端新增配件请指定 agentId");
-            }
-            agentId = req.getAgentId();
-        } else {
-            if (s.getAgentId() == null) {
-                throw new IllegalArgumentException("未绑定代理");
-            }
-            agentId = s.getAgentId();
-        }
-        Long mid = req.getMerchantId();
-        if (mid != null) {
-            Integer n = jdbcTemplate.queryForObject(
-                    "SELECT COUNT(*) FROM biz_env_merchant WHERE merchant_id = ? AND agent_id = ? AND del_flag = '0'",
-                    Integer.class,
-                    mid,
-                    agentId);
-            if (n == null || n == 0) {
-                throw new IllegalArgumentException("门店不属于该代理");
-            }
-        }
-        BigDecimal qty = BigDecimal.valueOf(req.getQty() == null ? 0 : req.getQty());
-        BigDecimal unitPrice = BigDecimal.valueOf(req.getUnitPrice() == null ? 0 : req.getUnitPrice());
-        if (qty.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("数量须大于0");
-        }
-        if (unitPrice.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("单价不能小于0");
-        }
-        jdbcTemplate.update(
-                "INSERT INTO biz_env_accessory (agent_id, merchant_id, acc_name, qty, unit_price, remark, del_flag) "
-                        + "VALUES (?,?,?,?,?,?,'0')",
-                agentId, mid, req.getAccessoryName(), qty, unitPrice, req.getRemark());
     }
 
     /**

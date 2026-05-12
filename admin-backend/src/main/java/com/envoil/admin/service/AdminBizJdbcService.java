@@ -6,7 +6,11 @@ import com.envoil.admin.model.OrderView;
 import com.envoil.admin.model.WorkOrderView;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Service;
+
+import java.sql.PreparedStatement;
+import java.sql.Statement;
 
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
@@ -93,7 +97,7 @@ public class AdminBizJdbcService {
                 + "  CASE o.status "
                 + "    WHEN '0' THEN '待确认' WHEN '1' THEN '待分配' WHEN '2' THEN '已接收' "
                 + "    WHEN '3' THEN '已完成' WHEN '4' THEN '订单取消' ELSE o.status END AS status_label, "
-                + "  CASE o.pay_type WHEN '1' THEN '现结' WHEN '2' THEN '赊欠' ELSE o.pay_type END AS pay_type_label "
+                + "  CASE o.pay_type WHEN '1' THEN '微信支付' WHEN '2' THEN '赊销' ELSE o.pay_type END AS pay_type_label "
                 + "FROM biz_env_order o "
                 + "JOIN biz_env_merchant m ON m.merchant_id = o.merchant_id AND m.del_flag = '0' "
                 + "WHERE o.del_flag = '0' "
@@ -172,6 +176,56 @@ public class AdminBizJdbcService {
             row.put("createTime", formatTs(rs.getTimestamp("create_time")));
             return row;
         });
+    }
+
+    public List<Map<String, Object>> listAccessoryTypes() {
+        return jdbcTemplate.query(
+                "SELECT type_id, type_name, sort_order FROM biz_env_accessory_type WHERE del_flag = '0' ORDER BY sort_order, type_id",
+                (rs, i) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("typeId", rs.getLong("type_id"));
+                    row.put("typeName", rs.getString("type_name"));
+                    row.put("sortOrder", rs.getInt("sort_order"));
+                    return row;
+                });
+    }
+
+    public long createAccessoryType(String typeName, int sortOrder) {
+        if (typeName == null || typeName.isEmpty()) {
+            throw new IllegalArgumentException("种类名称不能为空");
+        }
+        GeneratedKeyHolder kh = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO biz_env_accessory_type (type_name, sort_order, del_flag) VALUES (?,?, '0')",
+                    Statement.RETURN_GENERATED_KEYS);
+            ps.setString(1, typeName);
+            ps.setInt(2, sortOrder);
+            return ps;
+        }, kh);
+        Number key = kh.getKey();
+        if (key == null) {
+            throw new IllegalStateException("未能获取新种类 ID");
+        }
+        return key.longValue();
+    }
+
+    public void updateAccessoryType(long typeId, String typeName, int sortOrder) {
+        if (typeName == null || typeName.isEmpty()) {
+            throw new IllegalArgumentException("种类名称不能为空");
+        }
+        int n = jdbcTemplate.update(
+                "UPDATE biz_env_accessory_type SET type_name = ?, sort_order = ? WHERE type_id = ? AND del_flag = '0'",
+                typeName,
+                sortOrder,
+                typeId);
+        if (n == 0) {
+            throw new IllegalArgumentException("种类不存在或已删除");
+        }
+    }
+
+    public void softDeleteAccessoryType(long typeId) {
+        jdbcTemplate.update("UPDATE biz_env_accessory_type SET del_flag = '1' WHERE type_id = ?", typeId);
     }
 
     private long count(String sql) {

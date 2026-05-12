@@ -105,11 +105,11 @@ if (-not $SkipCommit) {
 }
 
 if (-not $SkipBackend) {
-  Write-Host '>>> Maven admin-backend (clean package)' -ForegroundColor Cyan
+  Write-Host ">>> Maven admin-backend (clean package)" -ForegroundColor Cyan
   Push-Location (Join-Path $RepoRoot 'admin-backend')
   mvn -q clean package -DskipTests
   Pop-Location
-  Write-Host '>>> Maven app-backend (clean package)' -ForegroundColor Cyan
+  Write-Host ">>> Maven app-backend (clean package)" -ForegroundColor Cyan
   Push-Location (Join-Path $RepoRoot 'app-backend')
   mvn -q clean package -DskipTests
   Pop-Location
@@ -118,12 +118,12 @@ if (-not $SkipBackend) {
 $adminDist = Join-Path $RepoRoot 'admin-frontend\dist-admin'
 $appDist = Join-Path $RepoRoot 'app-frontend\dist-app'
 if (-not $SkipFrontend) {
-  Write-Host '>>> npm admin-frontend' -ForegroundColor Cyan
+  Write-Host ">>> npm admin-frontend" -ForegroundColor Cyan
   Push-Location (Join-Path $RepoRoot 'admin-frontend')
   npm install --cache .npm-cache
   npm run build
   Pop-Location
-  Write-Host '>>> npm app-frontend' -ForegroundColor Cyan
+  Write-Host ">>> npm app-frontend" -ForegroundColor Cyan
   Push-Location (Join-Path $RepoRoot 'app-frontend')
   npm install --cache .npm-cache
   npm run build
@@ -136,13 +136,13 @@ if (-not $SkipBackend) {
   $appJar = Join-Path $RepoRoot 'app-backend\target\app-backend.jar'
   if (-not (Test-Path $adminJar)) { throw "Missing $adminJar" }
   if (-not (Test-Path $appJar)) { throw "Missing $appJar" }
-  Write-Host '>>> mkdir remote jar dirs' -ForegroundColor Cyan
+  Write-Host ">>> mkdir remote jar dirs" -ForegroundColor Cyan
   $dirAdmin = Split-Path $remoteJarAdmin -Parent
   $dirApp = Split-Path $remoteJarApp -Parent
   $sshPrep = @('-p', $sshPort, '-o', 'StrictHostKeyChecking=accept-new')
   if ($identity) { $sshPrep += @('-i', $identity) }
   ssh @sshPrep $DeployHost "mkdir -p '$dirAdmin' '$dirApp'"
-  Write-Host '>>> scp jars' -ForegroundColor Cyan
+  Write-Host ">>> scp jars" -ForegroundColor Cyan
   Invoke-Scp ($base + @($adminJar, "${DeployHost}:$remoteJarAdmin"))
   Invoke-Scp ($base + @($appJar, "${DeployHost}:$remoteJarApp"))
 }
@@ -150,56 +150,30 @@ if (-not $SkipBackend) {
 if (-not $SkipFrontend) {
   if (-not (Test-Path $adminDist)) { throw "Missing $adminDist" }
   if (-not (Test-Path $appDist)) { throw "Missing $appDist" }
-  Write-Host '>>> mkdir remote static dirs' -ForegroundColor Cyan
+  Write-Host ">>> mkdir remote static dirs" -ForegroundColor Cyan
   $sshMk = @('-p', $sshPort, '-o', 'StrictHostKeyChecking=accept-new')
   if ($identity) { $sshMk += @('-i', $identity) }
   $sshMk += @($DeployHost, "mkdir -p '$remoteStaticAdmin' '$remoteStaticApp'")
   ssh @sshMk
   if ($LASTEXITCODE -ne 0) { throw 'ssh mkdir failed' }
 
-  Write-Host '>>> scp static (recursive)' -ForegroundColor Cyan
+  Write-Host ">>> scp static (recursive)" -ForegroundColor Cyan
   Invoke-Scp ($base + @('-r', "${adminDist}/.", "${DeployHost}:$remoteStaticAdmin/"))
   Invoke-Scp ($base + @('-r', "${appDist}/.", "${DeployHost}:$remoteStaticApp/"))
 }
 
-$effectiveRemoteCmd = $remoteCmd
-if (-not $effectiveRemoteCmd -and $remoteRestartServices) {
-  $svcs = ($remoteRestartServices -split ',') | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
-  if ($svcs.Count -gt 0) {
-    $useSudo = ($env:REMOTE_RESTART_USE_SUDO -eq '1' -or $env:REMOTE_RESTART_USE_SUDO -eq 'true')
-    $prefix = if ($useSudo) { 'sudo ' } else { '' }
-    $effectiveRemoteCmd = ($svcs | ForEach-Object { "${prefix}systemctl restart $_" }) -join ' && '
-  }
-}
+# 远程启停：本脚本已取消自动 ssh 执行 systemctl / REMOTE_CMD，仅完成上传；请在服务器手工重启服务。
 
 if ($SkipRemoteAfter) {
-  Write-Host '>>> skip remote restart/hook (-SkipRemoteAfter)' -ForegroundColor Yellow
-} elseif ($effectiveRemoteCmd) {
-  Write-Host '>>> ssh remote command (restart / hook)' -ForegroundColor Cyan
-  $sshArgs = @('-p', $sshPort, '-o', 'StrictHostKeyChecking=accept-new')
-  if ($identity) { $sshArgs += @('-i', $identity) }
-  $sshArgs += @($DeployHost, $effectiveRemoteCmd)
-  Write-Host ">>> remote cmd: $effectiveRemoteCmd" -ForegroundColor DarkGray
-  ssh @sshArgs
-  if ($LASTEXITCODE -ne 0) {
-    Write-Host '>>> remote command failed, collecting diagnostics...' -ForegroundColor Yellow
-    $sshDiag = @('-p', $sshPort, '-o', 'StrictHostKeyChecking=accept-new')
-    if ($identity) { $sshDiag += @('-i', $identity) }
-    $diagCmd = "sh -lc 'echo ""---- ps java ----""; ps -ef | grep -E ""java|admin-backend.jar|app-backend.jar"" | grep -v grep || true; " +
-      "echo ""---- admin-backend.out ----""; tail -n 120 /www/wwwroot/jinfeng-admin/admin-backend.out || true; " +
-      "echo ""---- app-backend.out ----""; tail -n 120 /www/wwwroot/jinfeng-app/app-backend.out || true'"
-    $sshDiag += @($DeployHost, $diagCmd)
-    ssh @sshDiag
-    throw 'remote command failed'
-  }
+  Write-Host ">>> skip remote restart/hook (-SkipRemoteAfter)" -ForegroundColor Yellow
 } else {
-  Write-Host '>>> no remote restart configured (set REMOTE_CMD or REMOTE_RESTART_SYSTEMD_SERVICES)' -ForegroundColor Yellow
+  Write-Host ">>> remote restart skipped in script (upload only; restart services manually on server)." -ForegroundColor Yellow
 }
 
 if ($GitPush) {
-  Write-Host '>>> git push' -ForegroundColor Cyan
+  Write-Host ">>> git push" -ForegroundColor Cyan
   git push
-  if ($LASTEXITCODE -ne 0) { Write-Host 'git push failed (ignore or retry).' -ForegroundColor Yellow }
+  if ($LASTEXITCODE -ne 0) { Write-Host "git push failed (ignore or retry)." -ForegroundColor Yellow }
 }
 
-Write-Host 'Done.' -ForegroundColor Green
+Write-Host "Done." -ForegroundColor Green
