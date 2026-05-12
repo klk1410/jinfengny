@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -143,9 +144,13 @@ public class PortalJdbcService {
     public void replaceRolePerms(long roleId, List<String> permCodes) {
         jdbc.update("DELETE FROM env_mini_role_perm WHERE role_id = ?", roleId);
         if (permCodes != null) {
+            LinkedHashSet<String> seen = new LinkedHashSet<>();
             for (String code : permCodes) {
                 if (code != null && !code.isEmpty()) {
-                    jdbc.update("INSERT INTO env_mini_role_perm (role_id, perm_code) VALUES (?,?)", roleId, code.trim());
+                    String c = code.trim();
+                    if (seen.add(c)) {
+                        jdbc.update("INSERT INTO env_mini_role_perm (role_id, perm_code) VALUES (?,?)", roleId, c);
+                    }
                 }
             }
         }

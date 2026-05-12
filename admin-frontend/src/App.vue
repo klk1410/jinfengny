@@ -142,9 +142,10 @@ function syncRolePerms() {
 }
 
 async function saveRolePerms() {
+  const unique = [...new Set(rolePermSelection.value)];
   await requestJson(`/prod-api/admin/mini/roles/${selectedRoleId.value}/perms`, {
     method: "PUT",
-    body: JSON.stringify({ permCodes: rolePermSelection.value })
+    body: JSON.stringify({ permCodes: unique })
   });
   await loadRoles();
   syncRolePerms();
