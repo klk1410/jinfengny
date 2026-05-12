@@ -1,6 +1,7 @@
 package com.envoil.app.model;
 
 import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.Size;
 
 public class MerchantCreateRequest {
 
@@ -54,6 +55,15 @@ public class MerchantCreateRequest {
 
     private String remark;
     private String storeImageUrl;
+
+    /** 合同图片（Base64 data URL 或外链），新建店铺必填 */
+    @NotBlank(message = "请上传合同图片")
+    private String contractImageUrl;
+
+    /** 地图定位说明（如浏览器定位精度、选点说明），新建店铺必填 */
+    @NotBlank(message = "请完成地图定位")
+    @Size(max = 500, message = "地图定位说明过长")
+    private String mapLocationInfo;
 
     /** 提交审核时的说明（新建店铺走审核时使用，不落 biz_env_merchant.remark） */
     private String submitRemark;
@@ -208,6 +218,22 @@ public class MerchantCreateRequest {
 
     public void setStoreImageUrl(String storeImageUrl) {
         this.storeImageUrl = storeImageUrl;
+    }
+
+    public String getContractImageUrl() {
+        return contractImageUrl;
+    }
+
+    public void setContractImageUrl(String contractImageUrl) {
+        this.contractImageUrl = contractImageUrl;
+    }
+
+    public String getMapLocationInfo() {
+        return mapLocationInfo;
+    }
+
+    public void setMapLocationInfo(String mapLocationInfo) {
+        this.mapLocationInfo = mapLocationInfo;
     }
 
     public String getSubmitRemark() {

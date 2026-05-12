@@ -138,10 +138,6 @@ public class AppBizWorkOrderService {
         if (!canOperateWorkOrder(scope, wo)) {
             return null;
         }
-        Timestamp adl = (Timestamp) wo.get("accept_deadline");
-        if (adl != null && System.currentTimeMillis() > adl.getTime()) {
-            throw new IllegalArgumentException("抢单已截止，请等待代理指派");
-        }
         String st = String.valueOf(wo.get("status"));
         if (!"1".equals(st) && !"0".equals(st)) {
             throw new IllegalArgumentException("当前工单不可抢单");

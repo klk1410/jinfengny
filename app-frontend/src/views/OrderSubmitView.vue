@@ -9,6 +9,34 @@ const merchants = ref([]);
 const err = ref("");
 const busy = ref(false);
 
+/** 与后端 OilQuantityConverter 一致：斤 / 升 → 桶当量 */
+function normalizeOilQtyUnit(raw) {
+  if (raw == null || String(raw).trim() === "") return "B";
+  const t = String(raw).trim();
+  if (t === "桶") return "B";
+  if (t === "斤") return "J";
+  if (t === "升") return "L";
+  const u = t.toUpperCase();
+  if (u === "B" || u === "J" || u === "L") return u[0];
+  return t[0].toUpperCase();
+}
+
+function qtyToBucketEquivalent(qty, unitChar, densityKgPerL, litersPerBucket) {
+  const q = Number(qty);
+  if (!Number.isFinite(q) || q <= 0) return 0;
+  const d = densityKgPerL != null && densityKgPerL > 0 ? Number(densityKgPerL) : 0.85;
+  const lp = litersPerBucket != null && litersPerBucket > 0 ? Number(litersPerBucket) : 200;
+  const u = String(unitChar).toUpperCase();
+  if (u === "B") return q;
+  if (u === "L") return q / lp;
+  if (u === "J") {
+    const kg = q * 0.5;
+    const liters = kg / d;
+    return liters / lp;
+  }
+  return q;
+}
+
 const qtyUnitOptions = [
   { value: "桶", label: "桶" },
   { value: "斤", label: "斤" },
@@ -39,12 +67,24 @@ const unitPriceForCalc = computed(() => {
   return Number(m.oilUnitPrice) || 0;
 });
 
+/** 加油单：应付 = 单价(元/桶) × 桶当量（斤/升会先按油品密度与每桶升数折算） */
 const amountTotal = computed(() => {
   if (form.value.orderType !== "加油") {
     return 0;
   }
-  const n = Number(form.value.bucketCount) || 0;
-  return Math.round(unitPriceForCalc.value * n * 100) / 100;
+  const m = currentMerchant.value;
+  if (!m) {
+    return 0;
+  }
+  const unit = normalizeOilQtyUnit(form.value.qtyUnit);
+  const buckets = qtyToBucketEquivalent(
+    form.value.bucketCount,
+    unit,
+    m.densityKgPerLiter,
+    m.litersPerBucket
+  );
+  const price = Number(m.oilUnitPrice) || 0;
+  return Math.round(price * buckets * 100) / 100;
 });
 
 const canTransferMerchant = computed(() => roleCode.value !== "merchant");
@@ -213,7 +253,7 @@ onMounted(loadMerchants);
         <input v-model.number="form.bucketCount" class="inp" type="number" min="0.01" step="0.01" />
       </div>
       <p v-if="form.orderType === '加油' && currentMerchant" class="hint">
-        单价为 ¥{{ unitPriceForCalc }}/桶；{{ form.qtyUnit }}会先按门店油品密度折算为桶当量再计费。
+        单价 ¥{{ unitPriceForCalc }}/桶；下方应付合计已按「{{ form.qtyUnit }}」折算桶当量（与下单计费一致）。
       </p>
       <p v-if="form.orderType === '维护'" class="hint">维护单按系统规则计价（当前为 0 元展示）。</p>
       <p v-if="form.orderType === '转移商家'" class="hint">

@@ -169,6 +169,89 @@ select.pf-field:disabled {
   line-height: 1;
 }
 
+.pf-row--stack {
+  align-items: flex-start;
+  min-height: auto;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.pf-loc-panel {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.pf-loc-btn {
+  align-self: flex-start;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(180deg, #2d7cff 0%, #1f6dff 100%);
+  box-shadow: 0 2px 8px rgba(31, 109, 255, 0.25);
+}
+
+.pf-loc-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.pf-loc-summary {
+  margin: 0;
+  font-size: 13px;
+  color: #0f172a;
+  text-align: right;
+  line-height: 1.4;
+}
+
+.pf-loc-meta {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+  text-align: right;
+  line-height: 1.35;
+}
+
+.pf-loc-fallback {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.pf-loc-fallback summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.pf-loc-manual {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pf-loc-manual-line {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.pf-loc-manual-line input {
+  width: 120px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  text-align: right;
+}
+
 .pf-region {
   display: flex;
   gap: 6px;

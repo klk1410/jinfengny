@@ -297,8 +297,7 @@ function showReceive(row) {
   return (
     roleCode.value === "sales" &&
     (row.statusCode === "0" || row.statusCode === "1") &&
-    !row.receiveSalesmanId &&
-    row.grabExpired !== true
+    !row.receiveSalesmanId
   );
 }
 
@@ -754,7 +753,20 @@ function openMerchantMap(w) {
   gap: 10px;
 }
 .mask--assign {
-  z-index: 55;
+  z-index: 120;
+  align-items: flex-start;
+  justify-content: center;
+  padding: max(12px, env(safe-area-inset-top, 0px)) 12px 24px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.mask--assign .dialog {
+  margin-top: 0;
+  margin-bottom: auto;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.2);
+  overflow: visible;
+  max-height: none;
 }
 .dialog :deep(.pf-select) {
   width: 100%;

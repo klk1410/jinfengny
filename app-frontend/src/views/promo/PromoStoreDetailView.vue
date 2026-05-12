@@ -30,6 +30,10 @@ const salesmanId = ref("");
 const remark = ref("");
 const storeImageUrl = ref("");
 const imagePreview = ref("");
+const contractImageUrl = ref("");
+const contractPreview = ref("");
+const mapLocationInfo = ref("");
+const locating = ref(false);
 const submitRemark = ref("");
 
 const detail = ref(null);
@@ -59,6 +63,12 @@ const oilTypeSelectOptions = computed(() =>
   }))
 );
 
+const hasCoords = computed(() => {
+  const lon = Number(longitude.value);
+  const lat = Number(latitude.value);
+  return !Number.isNaN(lon) && !Number.isNaN(lat);
+});
+
 async function loadOilTypes() {
   try {
     oilTypes.value = (await requestJson("/app-api/biz/oil-types")) || [];
@@ -78,8 +88,11 @@ function applyDetail(d) {
   merchantName.value = d.merchantName || "";
   contactName.value = d.contactName || "";
   contactPhone.value = d.contactPhone || "";
-  longitude.value = d.longitude ?? 0;
-  latitude.value = d.latitude ?? 0;
+  longitude.value = d.longitude ?? null;
+  latitude.value = d.latitude ?? null;
+  mapLocationInfo.value = d.mapLocationInfo || "";
+  contractImageUrl.value = d.contractImageUrl || "";
+  contractPreview.value = d.contractImageUrl || "";
   province.value = d.province || "";
   city.value = d.city || "";
   district.value = d.district || "";
@@ -111,8 +124,33 @@ async function load() {
   }
 }
 
-function openMapHint() {
-  window.alert("正式环境可在此接入腾讯地图 / 高德地图选点，当前请手工填写经纬度。");
+function pickLocationFromBrowser() {
+  if (!navigator.geolocation) {
+    err.value = "当前浏览器不支持定位；请手动填写经纬度。";
+    return;
+  }
+  locating.value = true;
+  err.value = "";
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      locating.value = false;
+      longitude.value = pos.coords.longitude;
+      latitude.value = pos.coords.latitude;
+      const acc = pos.coords.accuracy != null ? Math.round(pos.coords.accuracy) : "—";
+      mapLocationInfo.value = `浏览器定位 · 精度约 ${acc} m`;
+    },
+    (e) => {
+      locating.value = false;
+      err.value = (e && e.message) || "定位失败，请检查权限或手动填写经纬度。";
+    },
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+  );
+}
+
+function onManualCoordInput() {
+  if (!mapLocationInfo.value.trim() && hasCoords.value) {
+    mapLocationInfo.value = detail.value?.mapLocationInfo || "手动录入坐标";
+  }
 }
 
 function onImageChange(ev) {
@@ -136,7 +174,32 @@ function onImageChange(ev) {
   r.readAsDataURL(f);
 }
 
+function onContractImageChange(ev) {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  if (f.size > 600 * 1024) {
+    err.value = "合同图片请小于 600KB";
+    return;
+  }
+  const r = new FileReader();
+  r.onload = () => {
+    const data = r.result;
+    if (typeof data !== "string" || data.length > 8000) {
+      err.value = "合同图片编码后过长";
+      return;
+    }
+    err.value = "";
+    contractImageUrl.value = data;
+    contractPreview.value = data;
+  };
+  r.readAsDataURL(f);
+}
+
 function buildWriteBody() {
+  let ml = mapLocationInfo.value.trim();
+  if (!ml && hasCoords.value) {
+    ml = detail.value?.mapLocationInfo || "手动录入坐标";
+  }
   return {
     openid: shell.loginOpenid,
     merchantId: merchantId.value,
@@ -155,6 +218,8 @@ function buildWriteBody() {
     merchantCommission: Number(merchantCommission.value) || 0,
     remark: remark.value.trim() || null,
     storeImageUrl: storeImageUrl.value || null,
+    contractImageUrl: contractImageUrl.value || null,
+    mapLocationInfo: ml || null,
     salesmanId: salesmanId.value ? Number(salesmanId.value) : null,
     linkedMerchantId: null
   };
@@ -185,6 +250,11 @@ function validate() {
   }
   if (!addressDetail.value.trim()) {
     err.value = "请填写详细地址";
+    return false;
+  }
+  const ml = mapLocationInfo.value.trim() || detail.value?.mapLocationInfo || "";
+  if (ml.length > 500) {
+    err.value = "地图定位说明过长";
     return false;
   }
   return true;
@@ -298,16 +368,44 @@ onMounted(() => {
         </article>
 
         <article class="dc-card dc-card--white">
-        <div class="pf-row">
-          <div class="pf-label req">经纬度</div>
-          <div class="pf-field-wrap pf-geo">
-            <div class="pf-geo-line">
-              <input v-model.number="longitude" type="number" step="any" :disabled="readOnly" />
-            </div>
-            <div class="pf-geo-line">
-              <input v-model.number="latitude" type="number" step="any" :disabled="readOnly" />
-              <button type="button" class="pf-map-btn" :disabled="readOnly" title="地图选点" @click="openMapHint">📍</button>
-            </div>
+        <div class="pf-row pf-row--stack pf-row--loc">
+          <div class="pf-label req">地图定位</div>
+          <div class="pf-field-wrap pf-loc-panel">
+            <button
+              type="button"
+              class="pf-loc-btn"
+              :disabled="readOnly || locating"
+              @click="pickLocationFromBrowser"
+            >
+              {{ locating ? "定位中…" : "获取当前位置" }}
+            </button>
+            <p v-if="hasCoords" class="pf-loc-summary">
+              经度 {{ Number(longitude).toFixed(6) }} · 纬度 {{ Number(latitude).toFixed(6) }}
+            </p>
+            <p v-if="mapLocationInfo" class="pf-loc-meta">{{ mapLocationInfo }}</p>
+            <details class="pf-loc-fallback">
+              <summary>手动输入经纬度</summary>
+              <div class="pf-loc-manual">
+                <label class="pf-loc-manual-line"
+                  >经度
+                  <input
+                    v-model.number="longitude"
+                    type="number"
+                    step="any"
+                    :disabled="readOnly"
+                    @input="onManualCoordInput"
+                /></label>
+                <label class="pf-loc-manual-line"
+                  >纬度
+                  <input
+                    v-model.number="latitude"
+                    type="number"
+                    step="any"
+                    :disabled="readOnly"
+                    @input="onManualCoordInput"
+                /></label>
+              </div>
+            </details>
           </div>
         </div>
 
@@ -362,6 +460,16 @@ onMounted(() => {
           <div class="pf-field-wrap">
             <input v-model="remark" class="pf-field" type="text" :disabled="readOnly" />
           </div>
+        </div>
+
+        <div class="pf-row pf-upload-row">
+          <div class="pf-label">合同图片</div>
+          <label class="pf-upload" :class="{ 'pf-upload--disabled': readOnly }">
+            <input type="file" accept="image/*" :disabled="readOnly" @change="onContractImageChange" />
+            <span>上传合同</span>
+            <span aria-hidden="true">📄</span>
+            <img v-if="contractPreview" :src="contractPreview" alt="" class="pf-thumb" />
+          </label>
         </div>
 
         <div class="pf-row pf-upload-row">

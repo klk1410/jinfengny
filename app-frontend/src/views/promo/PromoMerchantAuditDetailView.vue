@@ -78,7 +78,10 @@ const FIELD_LABEL_ZH = {
   salesmanId: "运维",
   linkedMerchantId: "关联商家",
   remark: "说明",
-  storeImageUrl: "店铺图片"
+  storeImageUrl: "店铺图片",
+  contractImageUrl: "合同图片",
+  mapLocationInfo: "地图定位",
+  oilTypeId: "主营油品"
 };
 
 watch(
@@ -91,7 +94,7 @@ function formatPayload(p) {
   if (!p || typeof p !== "object") return [];
   return Object.entries(p).map(([k, v]) => {
     let display = v === null || v === undefined ? "—" : String(v);
-    if (k === "storeImageUrl" && typeof v === "string" && v.startsWith("data:")) {
+    if ((k === "storeImageUrl" || k === "contractImageUrl") && typeof v === "string" && v.startsWith("data:")) {
       display = "（已上传图片）";
     }
     if ((k === "salesmanId" || k === "linkedMerchantId") && (v === null || v === undefined || v === "")) {

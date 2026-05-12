@@ -54,6 +54,8 @@ public class MerchantUpdateRequest {
     private Long linkedMerchantId;
     private String remark;
     private String storeImageUrl;
+    private String contractImageUrl;
+    private String mapLocationInfo;
 
     /** 业务员发起审核时的说明（直改接口可忽略） */
     private String submitRemark;
@@ -208,6 +210,22 @@ public class MerchantUpdateRequest {
 
     public void setStoreImageUrl(String storeImageUrl) {
         this.storeImageUrl = storeImageUrl;
+    }
+
+    public String getContractImageUrl() {
+        return contractImageUrl;
+    }
+
+    public void setContractImageUrl(String contractImageUrl) {
+        this.contractImageUrl = contractImageUrl;
+    }
+
+    public String getMapLocationInfo() {
+        return mapLocationInfo;
+    }
+
+    public void setMapLocationInfo(String mapLocationInfo) {
+        this.mapLocationInfo = mapLocationInfo;
     }
 
     public String getSubmitRemark() {

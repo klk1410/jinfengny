@@ -50,6 +50,8 @@ public class AppBizDataService {
         StringBuilder sql = new StringBuilder()
                 .append("SELECT m.merchant_id, m.merchant_name, m.contact_name, m.contact_phone, m.city, ")
                 .append("m.oil_unit_price, COALESCE(m.oil_type_id, 1) AS oil_type_id, ot.type_name AS oil_type_name, ")
+                .append("COALESCE(ot.density_kg_per_liter, 0.85) AS density_kg_per_liter, ")
+                .append("COALESCE(ot.liters_per_bucket, 200) AS liters_per_bucket, ")
                 .append("m.arrears_amount, a.agent_name, sm.salesman_name, m.status ")
                 .append("FROM biz_env_merchant m ")
                 .append("JOIN biz_env_agent a ON a.agent_id = m.agent_id AND a.del_flag = '0' ")
@@ -69,6 +71,8 @@ public class AppBizDataService {
             row.put("oilUnitPrice", rs.getBigDecimal("oil_unit_price").doubleValue());
             row.put("oilTypeId", rs.getLong("oil_type_id"));
             row.put("oilTypeName", rs.getString("oil_type_name"));
+            row.put("densityKgPerLiter", rs.getBigDecimal("density_kg_per_liter").doubleValue());
+            row.put("litersPerBucket", rs.getBigDecimal("liters_per_bucket").doubleValue());
             row.put("arrearsAmount", rs.getBigDecimal("arrears_amount").doubleValue());
             row.put("agentName", rs.getString("agent_name"));
             row.put("salesmanName", rs.getString("salesman_name"));
@@ -119,6 +123,20 @@ public class AppBizDataService {
         if (img != null && img.length() > 8000) {
             throw new IllegalArgumentException("店铺图片数据过大，请压缩或使用外链地址");
         }
+        String contract = req.getContractImageUrl();
+        if (contract == null || contract.trim().isEmpty()) {
+            throw new IllegalArgumentException("请上传合同图片");
+        }
+        if (contract.length() > 8000) {
+            throw new IllegalArgumentException("合同图片数据过大，请压缩或使用外链地址");
+        }
+        String locInfo = req.getMapLocationInfo();
+        if (locInfo == null || locInfo.trim().isEmpty()) {
+            throw new IllegalArgumentException("请完成地图定位");
+        }
+        if (locInfo.length() > 500) {
+            throw new IllegalArgumentException("地图定位说明过长");
+        }
     }
 
     /**
@@ -133,13 +151,15 @@ public class AppBizDataService {
         BigDecimal lat = BigDecimal.valueOf(req.getLatitude());
         String img = req.getStoreImageUrl();
         long oilTypeIdIns = req.getOilTypeId() == null ? 1L : req.getOilTypeId().longValue();
+        String contractImg = req.getContractImageUrl();
+        String mapLoc = req.getMapLocationInfo();
         GeneratedKeyHolder kh = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement(
                     "INSERT INTO biz_env_merchant (agent_id, salesman_id, industry_type, merchant_name, contact_name, contact_phone, "
                             + "longitude, latitude, province, city, district, address_detail, oil_unit_price, oil_type_id, merchant_commission, "
-                            + "remark, store_image_url, linked_merchant_id, status, del_flag) "
-                            + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, '0','0')",
+                            + "remark, store_image_url, contract_image_url, map_location_info, linked_merchant_id, status, del_flag) "
+                            + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, '0','0')",
                     Statement.RETURN_GENERATED_KEYS);
             ps.setLong(1, agentId);
             if (insertSalesmanId == null) {
@@ -162,10 +182,12 @@ public class AppBizDataService {
             ps.setBigDecimal(15, comm);
             ps.setString(16, req.getRemark());
             ps.setString(17, img);
+            ps.setString(18, contractImg);
+            ps.setString(19, mapLoc);
             if (req.getLinkedMerchantId() == null) {
-                ps.setObject(18, null);
+                ps.setObject(20, null);
             } else {
-                ps.setLong(18, req.getLinkedMerchantId());
+                ps.setLong(20, req.getLinkedMerchantId());
             }
             return ps;
         }, kh);
@@ -188,7 +210,7 @@ public class AppBizDataService {
                 .append("m.contact_phone, m.longitude, m.latitude, m.province, m.city, m.district, m.address_detail, ")
                 .append("m.oil_unit_price, COALESCE(m.oil_type_id, 1) AS oil_type_id, ot.type_name AS oil_type_name, ")
                 .append("m.merchant_commission, m.arrears_amount, m.device_count, m.status, ")
-                .append("m.remark, m.store_image_url, m.linked_merchant_id, a.agent_name, sm.salesman_name ")
+                .append("m.remark, m.store_image_url, m.contract_image_url, m.map_location_info, m.linked_merchant_id, a.agent_name, sm.salesman_name ")
                 .append("FROM biz_env_merchant m ")
                 .append("JOIN biz_env_agent a ON a.agent_id = m.agent_id AND a.del_flag = '0' ")
                 .append("LEFT JOIN biz_env_oil_type ot ON ot.oil_type_id = COALESCE(m.oil_type_id, 1) AND ot.del_flag = '0' ")
@@ -227,6 +249,8 @@ public class AppBizDataService {
                     row.put("statusCode", rs.getString("status"));
                     row.put("remark", rs.getString("remark"));
                     row.put("storeImageUrl", rs.getString("store_image_url"));
+                    row.put("contractImageUrl", rs.getString("contract_image_url"));
+                    row.put("mapLocationInfo", rs.getString("map_location_info"));
                     row.put("linkedMerchantId", rs.getObject("linked_merchant_id") == null ? null : rs.getLong("linked_merchant_id"));
                     row.put("agentName", rs.getString("agent_name"));
                     row.put("salesmanName", rs.getString("salesman_name"));
@@ -282,6 +306,14 @@ public class AppBizDataService {
         if (img != null && img.length() > 8000) {
             throw new IllegalArgumentException("店铺图片数据过大，请压缩或使用外链地址");
         }
+        String contractImg = req.getContractImageUrl();
+        if (contractImg != null && contractImg.length() > 8000) {
+            throw new IllegalArgumentException("合同图片数据过大，请压缩或使用外链地址");
+        }
+        String mapLoc = req.getMapLocationInfo();
+        if (mapLoc != null && mapLoc.length() > 500) {
+            throw new IllegalArgumentException("地图定位说明过长");
+        }
         Long salesmanId = req.getSalesmanId();
         if (salesmanId != null) {
             ensureSalesmanBelongsToAgent(salesmanId, agentId);
@@ -301,7 +333,7 @@ public class AppBizDataService {
                 "UPDATE biz_env_merchant SET industry_type = ?, merchant_name = ?, contact_name = ?, contact_phone = ?, "
                         + "longitude = ?, latitude = ?, province = ?, city = ?, district = ?, address_detail = ?, "
                         + "oil_unit_price = ?, oil_type_id = ?, merchant_commission = ?, salesman_id = ?, linked_merchant_id = ?, remark = ?, "
-                        + "store_image_url = ? "
+                        + "store_image_url = ?, contract_image_url = COALESCE(?, contract_image_url), map_location_info = COALESCE(?, map_location_info) "
                         + "WHERE merchant_id = ? AND agent_id = ? AND del_flag = '0'",
                 req.getIndustryType(),
                 req.getMerchantName(),
@@ -320,6 +352,8 @@ public class AppBizDataService {
                 req.getLinkedMerchantId(),
                 req.getRemark(),
                 img,
+                contractImg,
+                mapLoc,
                 merchantId,
                 agentId);
         if (n == 0) {

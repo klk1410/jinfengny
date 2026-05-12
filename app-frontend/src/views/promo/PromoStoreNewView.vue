@@ -13,8 +13,8 @@ const industryType = ref("");
 const merchantName = ref("");
 const contactName = ref("");
 const contactPhone = ref("");
-const longitude = ref(0);
-const latitude = ref(0);
+const longitude = ref(null);
+const latitude = ref(null);
 const province = ref("");
 const city = ref("");
 const district = ref("");
@@ -24,6 +24,10 @@ const remark = ref("");
 const submitRemark = ref("");
 const storeImageUrl = ref("");
 const imagePreview = ref("");
+const contractImageUrl = ref("");
+const contractPreview = ref("");
+const mapLocationInfo = ref("");
+const locating = ref(false);
 const agentId = ref("1");
 const oilTypes = ref([]);
 const oilTypeId = ref("1");
@@ -52,6 +56,12 @@ const isMain = computed(() => roleCode.value === "main");
 /** 运维、商家新增店铺走审核，不直接落库 */
 const needsCreateAudit = computed(() => roleCode.value === "sales" || roleCode.value === "merchant");
 
+const hasCoords = computed(() => {
+  const lon = Number(longitude.value);
+  const lat = Number(latitude.value);
+  return !Number.isNaN(lon) && !Number.isNaN(lat);
+});
+
 async function loadPickers() {
   const oid = encodeURIComponent(unref(shell.loginOpenid));
   salesmen.value = (await requestJson(`/app-api/biz/salesmen?openid=${oid}`)) || [];
@@ -68,8 +78,33 @@ async function loadOilTypes() {
   }
 }
 
-function openMapHint() {
-  window.alert("正式环境可在此接入腾讯地图 / 高德地图选点，当前请手工填写经纬度。");
+function pickLocationFromBrowser() {
+  if (!navigator.geolocation) {
+    err.value = "当前浏览器不支持定位；请展开下方手动填写经纬度（建议使用 HTTPS）。";
+    return;
+  }
+  locating.value = true;
+  err.value = "";
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      locating.value = false;
+      longitude.value = pos.coords.longitude;
+      latitude.value = pos.coords.latitude;
+      const acc = pos.coords.accuracy != null ? Math.round(pos.coords.accuracy) : "—";
+      mapLocationInfo.value = `浏览器定位 · 精度约 ${acc} m`;
+    },
+    (e) => {
+      locating.value = false;
+      err.value = (e && e.message) || "定位失败，请检查浏览器定位权限，或使用下方手动填写经纬度。";
+    },
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+  );
+}
+
+function onManualCoordInput() {
+  if (!mapLocationInfo.value.trim() && hasCoords.value) {
+    mapLocationInfo.value = "手动录入坐标";
+  }
 }
 
 function onImageChange(ev) {
@@ -89,6 +124,27 @@ function onImageChange(ev) {
     err.value = "";
     storeImageUrl.value = data;
     imagePreview.value = data;
+  };
+  r.readAsDataURL(f);
+}
+
+function onContractImageChange(ev) {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  if (f.size > 600 * 1024) {
+    err.value = "合同图片请小于 600KB，或改用图片外链";
+    return;
+  }
+  const r = new FileReader();
+  r.onload = () => {
+    const data = r.result;
+    if (typeof data !== "string" || data.length > 8000) {
+      err.value = "合同图片编码后过长，请换更小图片或压缩后再传";
+      return;
+    }
+    err.value = "";
+    contractImageUrl.value = data;
+    contractPreview.value = data;
   };
   r.readAsDataURL(f);
 }
@@ -113,7 +169,14 @@ function validate() {
   const lon = Number(longitude.value);
   const lat = Number(latitude.value);
   if (Number.isNaN(lon) || Number.isNaN(lat)) {
-    err.value = "请填写有效经纬度";
+    err.value = "请点击「获取定位」填写地图坐标，或手动输入经纬度";
+    return false;
+  }
+  if (!mapLocationInfo.value.trim()) {
+    mapLocationInfo.value = "手动录入坐标";
+  }
+  if (mapLocationInfo.value.length > 500) {
+    err.value = "地图定位说明过长";
     return false;
   }
   if (!province.value.trim() || !city.value.trim() || !district.value.trim()) {
@@ -122,6 +185,10 @@ function validate() {
   }
   if (!addressDetail.value.trim()) {
     err.value = "请填写详细地址";
+    return false;
+  }
+  if (!contractImageUrl.value.trim()) {
+    err.value = "请上传合同图片";
     return false;
   }
   if (isMain.value && !String(agentId.value).trim()) {
@@ -151,7 +218,9 @@ async function submit() {
       oilTypeId: Number(oilTypeId.value) || 1,
       merchantCommission: 0,
       remark: remark.value.trim() || null,
-      storeImageUrl: storeImageUrl.value || null
+      storeImageUrl: storeImageUrl.value || null,
+      contractImageUrl: contractImageUrl.value.trim(),
+      mapLocationInfo: mapLocationInfo.value.trim()
     };
     if (isMain.value) {
       body.agentId = Number(agentId.value);
@@ -227,16 +296,27 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="pf-row">
-        <div class="pf-label req">经纬度</div>
-        <div class="pf-field-wrap pf-geo">
-          <div class="pf-geo-line">
-            <input v-model.number="longitude" type="number" step="any" placeholder="经度" />
-          </div>
-          <div class="pf-geo-line">
-            <input v-model.number="latitude" type="number" step="any" placeholder="纬度" />
-            <button type="button" class="pf-map-btn" title="地图选点" @click="openMapHint">📍</button>
-          </div>
+      <div class="pf-row pf-row--stack pf-row--loc">
+        <div class="pf-label req">地图定位</div>
+        <div class="pf-field-wrap pf-loc-panel">
+          <button type="button" class="pf-loc-btn" :disabled="locating" @click="pickLocationFromBrowser">
+            {{ locating ? "定位中…" : "获取当前位置" }}
+          </button>
+          <p v-if="hasCoords" class="pf-loc-summary">
+            经度 {{ Number(longitude).toFixed(6) }} · 纬度 {{ Number(latitude).toFixed(6) }}
+          </p>
+          <p v-if="mapLocationInfo" class="pf-loc-meta">{{ mapLocationInfo }}</p>
+          <details class="pf-loc-fallback">
+            <summary>无法自动定位？手动输入经纬度</summary>
+            <div class="pf-loc-manual">
+              <label class="pf-loc-manual-line"
+                >经度 <input v-model.number="longitude" type="number" step="any" placeholder="如 113.264" @input="onManualCoordInput"
+              /></label>
+              <label class="pf-loc-manual-line"
+                >纬度 <input v-model.number="latitude" type="number" step="any" placeholder="如 23.129" @input="onManualCoordInput"
+              /></label>
+            </div>
+          </details>
         </div>
       </div>
 
@@ -284,6 +364,16 @@ onMounted(() => {
           <span>上传图片</span>
           <span aria-hidden="true">☁</span>
           <img v-if="imagePreview" :src="imagePreview" alt="" class="pf-thumb" />
+        </label>
+      </div>
+
+      <div class="pf-row pf-upload-row">
+        <div class="pf-label req">合同图片</div>
+        <label class="pf-upload">
+          <input type="file" accept="image/*" @change="onContractImageChange" />
+          <span>上传合同</span>
+          <span aria-hidden="true">📄</span>
+          <img v-if="contractPreview" :src="contractPreview" alt="" class="pf-thumb" />
         </label>
       </div>
 

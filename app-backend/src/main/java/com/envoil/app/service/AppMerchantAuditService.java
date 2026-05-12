@@ -431,6 +431,8 @@ public class AppMerchantAuditService {
         m.put("linkedMerchantId", r.getLinkedMerchantId());
         m.put("remark", r.getRemark());
         m.put("storeImageUrl", r.getStoreImageUrl());
+        m.put("contractImageUrl", r.getContractImageUrl());
+        m.put("mapLocationInfo", r.getMapLocationInfo());
         try {
             return objectMapper.writeValueAsString(m);
         } catch (Exception e) {
@@ -457,6 +459,8 @@ public class AppMerchantAuditService {
         m.put("linkedMerchantId", r.getLinkedMerchantId());
         m.put("remark", r.getRemark());
         m.put("storeImageUrl", r.getStoreImageUrl());
+        m.put("contractImageUrl", r.getContractImageUrl());
+        m.put("mapLocationInfo", r.getMapLocationInfo());
         try {
             return objectMapper.writeValueAsString(m);
         } catch (Exception e) {
