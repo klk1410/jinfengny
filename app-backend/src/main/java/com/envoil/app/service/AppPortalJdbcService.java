@@ -89,6 +89,22 @@ public class AppPortalJdbcService {
         return login;
     }
 
+    /** 联调：下拉展示后台已绑定的 openid（可与关键字推断账号合并）。 */
+    public List<Map<String, Object>> listSubjects() {
+        return jdbc.query(
+                "SELECT s.openid, r.role_code AS roleCode, r.role_name AS roleName "
+                        + "FROM env_mini_subject s "
+                        + "JOIN env_mini_role r ON r.role_id = s.role_id "
+                        + "ORDER BY r.sort_order, s.openid",
+                (rs, i) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("openid", rs.getString("openid"));
+                    row.put("roleCode", rs.getString("roleCode"));
+                    row.put("roleName", rs.getString("roleName"));
+                    return row;
+                });
+    }
+
     private long resolveRoleId(String openid) {
         List<Long> ids = jdbc.query(
                 "SELECT role_id FROM env_mini_subject WHERE openid = ?",
@@ -126,6 +142,9 @@ public class AppPortalJdbcService {
         }
         if (openid.contains("merchant-openid")) {
             return "merchant";
+        }
+        if (openid.contains("ops-openid")) {
+            return "ops";
         }
         return "guest";
     }

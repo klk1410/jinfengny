@@ -33,6 +33,19 @@ const rolePermSelection = ref([]);
 const subForm = ref({ openid: "", roleId: null });
 
 const summary = ref({});
+
+const pendingTodoCount = computed(() => {
+  const s = summary.value || {};
+  return (
+    (s.orderPendingCount || 0) +
+    (s.workPendingCount || 0) +
+    (s.merchantAuditPendingCount || 0) +
+    (s.deviceEventAuditPendingCount || 0)
+  );
+});
+const pendingTodoBadge = computed(() =>
+  pendingTodoCount.value > 99 ? "99+" : String(pendingTodoCount.value)
+);
 const merchants = ref([]);
 const orders = ref([]);
 
@@ -127,7 +140,13 @@ function logout() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadPortalTree(), loadRoles(), loadSubjects(), loadPermOptions()]);
+  await Promise.all([
+    loadPortalTree(),
+    loadRoles(),
+    loadSubjects(),
+    loadPermOptions(),
+    loadDashboard().catch(() => {})
+  ]);
 }
 
 async function loadPortalTree() {
@@ -341,7 +360,12 @@ onMounted(() => {
 
     <template v-else>
       <header class="topbar">
-        <h1>环保油管理后台</h1>
+        <h1 class="topbar-title">
+          环保油管理后台
+          <span v-if="pendingTodoCount > 0" class="nav-badge" title="待处理：订单、工单、店铺审核、设备审核">{{
+            pendingTodoBadge
+          }}</span>
+        </h1>
         <button class="btn ghost" @click="logout">退出</button>
       </header>
 
@@ -523,7 +547,10 @@ onMounted(() => {
           <div class="kpi">代理: {{ summary.agentCount || 0 }}</div>
           <div class="kpi">业务员: {{ summary.salesmanCount || 0 }}</div>
           <div class="kpi">商家: {{ summary.merchantCount || 0 }}</div>
-          <div class="kpi">待确认订单: {{ summary.orderPendingCount || 0 }}</div>
+          <div class="kpi">待处理订单: {{ summary.orderPendingCount || 0 }}</div>
+          <div class="kpi">待分配/确认工单: {{ summary.workPendingCount || 0 }}</div>
+          <div class="kpi">店铺审核待办: {{ summary.merchantAuditPendingCount || 0 }}</div>
+          <div class="kpi">设备审核待办: {{ summary.deviceEventAuditPendingCount || 0 }}</div>
         </div>
         <h3>商家</h3>
         <table>
@@ -559,6 +586,29 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+}
+
+.topbar-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 20px;
+}
+
+.nav-badge {
+  display: inline-flex;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .tabs {

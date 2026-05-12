@@ -1,5 +1,5 @@
 <script setup>
-import { computed, inject, onMounted, ref } from "vue";
+import { computed, inject, onMounted, ref, unref } from "vue";
 import { useRouter } from "vue-router";
 import { requestJson } from "../../api.js";
 import PfSelect from "../../components/PfSelect.vue";
@@ -25,6 +25,8 @@ const submitRemark = ref("");
 const storeImageUrl = ref("");
 const imagePreview = ref("");
 const agentId = ref("1");
+const oilTypes = ref([]);
+const oilTypeId = ref("1");
 
 const industryOptions = ["餐饮", "酒店", "工厂", "学校", "企事业单位", "其他"];
 const salesmen = ref([]);
@@ -38,14 +40,32 @@ const salesmanSelectOptions = computed(() => [
   }))
 ]);
 
-const roleCode = computed(() => shell.portal?.roleCode ?? "");
+const oilTypeSelectOptions = computed(() =>
+  (oilTypes.value || []).map((x) => ({
+    value: String(x.oilTypeId),
+    label: x.typeName
+  }))
+);
+
+const roleCode = computed(() => shell.roleCode ?? unref(shell.portal)?.roleCode ?? "");
 const isMain = computed(() => roleCode.value === "main");
 /** 业务员、商家新增店铺走审核，不直接落库 */
 const needsCreateAudit = computed(() => roleCode.value === "sales" || roleCode.value === "merchant");
 
 async function loadPickers() {
-  const oid = encodeURIComponent(shell.loginOpenid);
+  const oid = encodeURIComponent(unref(shell.loginOpenid));
   salesmen.value = (await requestJson(`/app-api/biz/salesmen?openid=${oid}`)) || [];
+}
+
+async function loadOilTypes() {
+  try {
+    oilTypes.value = (await requestJson("/app-api/biz/oil-types")) || [];
+    if (oilTypes.value.length && !oilTypes.value.find((x) => String(x.oilTypeId) === oilTypeId.value)) {
+      oilTypeId.value = String(oilTypes.value[0].oilTypeId);
+    }
+  } catch {
+    oilTypes.value = [];
+  }
 }
 
 function openMapHint() {
@@ -116,7 +136,7 @@ async function submit() {
   if (!validate()) return;
   try {
     const body = {
-      openid: shell.loginOpenid,
+      openid: unref(shell.loginOpenid),
       industryType: industryType.value,
       merchantName: merchantName.value.trim(),
       contactName: contactName.value.trim(),
@@ -128,6 +148,7 @@ async function submit() {
       district: district.value.trim(),
       addressDetail: addressDetail.value.trim(),
       oilUnitPrice: 0,
+      oilTypeId: Number(oilTypeId.value) || 1,
       merchantCommission: 0,
       remark: remark.value.trim() || null,
       storeImageUrl: storeImageUrl.value || null
@@ -159,6 +180,7 @@ async function submit() {
 }
 
 onMounted(() => {
+  loadOilTypes();
   loadPickers().catch((e) => {
     err.value = e.message || String(e);
   });
@@ -174,6 +196,13 @@ onMounted(() => {
         <div class="pf-label req">所属行业</div>
         <div class="pf-field-wrap pf-field-wrap--select">
           <PfSelect v-model="industryType" :options="industrySelectOptions" placeholder="选择所属行业" />
+        </div>
+      </div>
+
+      <div class="pf-row">
+        <div class="pf-label req">主营油品</div>
+        <div class="pf-field-wrap pf-field-wrap--select">
+          <PfSelect v-model="oilTypeId" :options="oilTypeSelectOptions" placeholder="选择油品种类" />
         </div>
       </div>
 

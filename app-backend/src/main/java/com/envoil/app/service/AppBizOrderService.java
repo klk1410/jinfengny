@@ -2,6 +2,7 @@ package com.envoil.app.service;
 
 import com.envoil.app.model.OpenidBizScope;
 import com.envoil.app.model.OrderCreateRequest;
+import com.envoil.app.util.OilQuantityConverter;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -67,9 +68,19 @@ public class AppBizOrderService {
         }
         char orderType = parseOrderType(request.getOrderType());
         char payType = parsePayType(request.getPayType());
-        BigDecimal buckets = BigDecimal.valueOf(request.getBucketCount()).setScale(2, RoundingMode.HALF_UP);
+        char qtyUnitChar = OilQuantityConverter.normalizeOilQtyUnit(request.getOilQtyUnit());
+        BigDecimal buckets;
         BigDecimal unit;
         if (orderType == '1') {
+            BigDecimal density = merchant.get("density_kg_per_liter") == null
+                    ? new BigDecimal("0.8500")
+                    : new BigDecimal(merchant.get("density_kg_per_liter").toString());
+            BigDecimal litersPerBucket = merchant.get("liters_per_bucket") == null
+                    ? new BigDecimal("200")
+                    : new BigDecimal(merchant.get("liters_per_bucket").toString());
+            BigDecimal rawQty = BigDecimal.valueOf(request.getBucketCount());
+            buckets = OilQuantityConverter.toBuckets(rawQty, qtyUnitChar, density, litersPerBucket)
+                    .setScale(4, RoundingMode.HALF_UP);
             Object ou = merchant.get("oil_unit_price");
             unit = ou == null
                     ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
@@ -78,11 +89,13 @@ public class AppBizOrderService {
                 unit = BigDecimal.valueOf(request.getUnitPrice()).setScale(2, RoundingMode.HALF_UP);
             }
         } else {
+            buckets = BigDecimal.valueOf(request.getBucketCount()).setScale(2, RoundingMode.HALF_UP);
             unit = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
             if (buckets.compareTo(BigDecimal.ZERO) <= 0) {
                 buckets = BigDecimal.ONE;
             }
         }
+        String oilQtyUnitDb = orderType == '1' ? String.valueOf(Character.toUpperCase(qtyUnitChar)) : "B";
         Long toMerchantIdRow = null;
         if (orderType == '4') {
             if (request.getToMerchantId() == null) {
@@ -114,14 +127,15 @@ public class AppBizOrderService {
 
         jdbcTemplate.update(
                 "INSERT INTO biz_env_order (order_no, order_time, merchant_id, to_merchant_id, order_type, oil_unit_price, "
-                        + "oil_bucket_count, amount_total, discount_amount, amount_payable, status, agent_id, pay_type, del_flag) "
-                        + "VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?, '0', ?, ?, '0')",
+                        + "oil_bucket_count, oil_qty_unit, amount_total, discount_amount, amount_payable, status, agent_id, pay_type, del_flag) "
+                        + "VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?, ?, '0', ?, ?, '0')",
                 orderNo,
                 merchantId,
                 toMerchantIdRow,
                 String.valueOf(orderType),
                 unit,
                 buckets,
+                oilQtyUnitDb,
                 amountTotal,
                 discount,
                 amountPayable,
@@ -160,7 +174,7 @@ public class AppBizOrderService {
         OpenidBizScope scope = scopeService.resolve(openid);
         StringBuilder sql = new StringBuilder()
                 .append("SELECT o.order_no, m.merchant_name, tm.merchant_name AS to_merchant_name, o.order_type, o.status AS st, o.pay_type, ")
-                .append("o.amount_payable, o.order_time, o.work_order_no, o.estimated_work_hours, o.oil_bucket_count, o.to_merchant_id ")
+                .append("o.amount_payable, o.order_time, o.work_order_no, o.estimated_work_hours, o.oil_bucket_count, o.oil_qty_unit, o.to_merchant_id ")
                 .append("FROM biz_env_order o ")
                 .append("JOIN biz_env_merchant m ON m.merchant_id = o.merchant_id AND m.del_flag = '0' ")
                 .append("LEFT JOIN biz_env_merchant tm ON tm.merchant_id = o.to_merchant_id AND tm.del_flag = '0' ")
@@ -178,6 +192,7 @@ public class AppBizOrderService {
             row.put("payType", labelPayType(rs.getString("pay_type")));
             row.put("amountPayable", rs.getBigDecimal("amount_payable").doubleValue());
             row.put("bucketCount", rs.getBigDecimal("oil_bucket_count").doubleValue());
+            row.put("oilQtyUnit", rs.getString("oil_qty_unit"));
             row.put("orderTypeCode", rs.getString("order_type"));
             row.put("createTime", formatTs(rs.getTimestamp("order_time")));
             row.put("workOrderNo", rs.getString("work_order_no"));
@@ -318,7 +333,8 @@ public class AppBizOrderService {
                 ? BigDecimal.ZERO
                 : ((BigDecimal) row.get("oil_bucket_count")).setScale(2, RoundingMode.HALF_UP);
         if ("1".equals(orderType)) {
-            stockService.reserveForOilOrder(agentId, orderNo, buckets);
+            long oilTypeId = resolveMerchantOilTypeId(merchantId);
+            stockService.reserveForOilOrder(agentId, oilTypeId, orderNo, buckets);
         }
         String woNo = AppBizWorkOrderService.newWorkOrderNo();
         Timestamp acceptDeadline = Timestamp.valueOf(LocalDateTime.now().plusMinutes(5));
@@ -430,7 +446,8 @@ public class AppBizOrderService {
                 : ((BigDecimal) row.get("oil_bucket_count")).setScale(2, RoundingMode.HALF_UP);
         long aid = ((Number) row.get("agent_id")).longValue();
         if ("1".equals(orderType) && ("1".equals(st) || "2".equals(st))) {
-            stockService.rollbackReserveForOilOrder(aid, orderNo, buckets);
+            long merchantIdForOil = ((Number) row.get("merchant_id")).longValue();
+            stockService.rollbackReserveForOilOrder(aid, resolveMerchantOilTypeId(merchantIdForOil), orderNo, buckets);
         }
         jdbcTemplate.update(
                 "UPDATE biz_env_work_order SET status = '4' WHERE order_no = ? AND del_flag = '0' AND status IN ('0','1','2')",
@@ -599,10 +616,26 @@ public class AppBizOrderService {
 
     private Map<String, Object> loadMerchant(long merchantId) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT merchant_id, agent_id, salesman_id, oil_unit_price FROM biz_env_merchant "
-                        + "WHERE merchant_id = ? AND del_flag = '0'",
+                "SELECT m.merchant_id, m.agent_id, m.salesman_id, m.oil_unit_price, COALESCE(m.oil_type_id, 1) AS oil_type_id, "
+                        + "ot.density_kg_per_liter, ot.liters_per_bucket "
+                        + "FROM biz_env_merchant m "
+                        + "LEFT JOIN biz_env_oil_type ot ON ot.oil_type_id = COALESCE(m.oil_type_id, 1) AND ot.del_flag = '0' "
+                        + "WHERE m.merchant_id = ? AND m.del_flag = '0'",
                 merchantId);
         return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    private long resolveMerchantOilTypeId(long merchantId) {
+        Number n = jdbcTemplate.query(
+                "SELECT COALESCE(oil_type_id, 1) AS oid FROM biz_env_merchant WHERE merchant_id = ? AND del_flag = '0'",
+                rs -> {
+                    if (!rs.next()) {
+                        return null;
+                    }
+                    return (Number) rs.getObject("oid");
+                },
+                merchantId);
+        return n == null ? 1L : n.longValue();
     }
 
     private boolean canAccessMerchant(OpenidBizScope scope, Map<String, Object> merchant) {

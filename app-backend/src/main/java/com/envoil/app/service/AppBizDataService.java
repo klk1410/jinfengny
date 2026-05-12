@@ -1,6 +1,7 @@
 package com.envoil.app.service;
 
 import com.envoil.app.model.MerchantCreateRequest;
+import com.envoil.app.util.OilQuantityConverter;
 import com.envoil.app.model.MerchantUpdateRequest;
 import com.envoil.app.model.OpenidBizScope;
 import com.envoil.app.model.AccessoryCreateRequest;
@@ -48,9 +49,11 @@ public class AppBizDataService {
         OpenidBizScope s = scopeService.resolve(openid);
         StringBuilder sql = new StringBuilder()
                 .append("SELECT m.merchant_id, m.merchant_name, m.contact_name, m.contact_phone, m.city, ")
-                .append("m.oil_unit_price, m.arrears_amount, a.agent_name, sm.salesman_name, m.status ")
+                .append("m.oil_unit_price, COALESCE(m.oil_type_id, 1) AS oil_type_id, ot.type_name AS oil_type_name, ")
+                .append("m.arrears_amount, a.agent_name, sm.salesman_name, m.status ")
                 .append("FROM biz_env_merchant m ")
                 .append("JOIN biz_env_agent a ON a.agent_id = m.agent_id AND a.del_flag = '0' ")
+                .append("LEFT JOIN biz_env_oil_type ot ON ot.oil_type_id = COALESCE(m.oil_type_id, 1) AND ot.del_flag = '0' ")
                 .append("LEFT JOIN biz_env_salesman sm ON sm.salesman_id = m.salesman_id AND sm.del_flag = '0' ")
                 .append("WHERE m.del_flag = '0' ");
         List<Object> args = new ArrayList<>();
@@ -64,6 +67,8 @@ public class AppBizDataService {
             row.put("contactPhone", rs.getString("contact_phone"));
             row.put("city", rs.getString("city"));
             row.put("oilUnitPrice", rs.getBigDecimal("oil_unit_price").doubleValue());
+            row.put("oilTypeId", rs.getLong("oil_type_id"));
+            row.put("oilTypeName", rs.getString("oil_type_name"));
             row.put("arrearsAmount", rs.getBigDecimal("arrears_amount").doubleValue());
             row.put("agentName", rs.getString("agent_name"));
             row.put("salesmanName", rs.getString("salesman_name"));
@@ -127,13 +132,14 @@ public class AppBizDataService {
         BigDecimal lon = BigDecimal.valueOf(req.getLongitude());
         BigDecimal lat = BigDecimal.valueOf(req.getLatitude());
         String img = req.getStoreImageUrl();
+        long oilTypeIdIns = req.getOilTypeId() == null ? 1L : req.getOilTypeId().longValue();
         GeneratedKeyHolder kh = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement(
                     "INSERT INTO biz_env_merchant (agent_id, salesman_id, industry_type, merchant_name, contact_name, contact_phone, "
-                            + "longitude, latitude, province, city, district, address_detail, oil_unit_price, merchant_commission, "
+                            + "longitude, latitude, province, city, district, address_detail, oil_unit_price, oil_type_id, merchant_commission, "
                             + "remark, store_image_url, linked_merchant_id, status, del_flag) "
-                            + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'0','0')",
+                            + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, '0','0')",
                     Statement.RETURN_GENERATED_KEYS);
             ps.setLong(1, agentId);
             if (insertSalesmanId == null) {
@@ -152,13 +158,14 @@ public class AppBizDataService {
             ps.setString(11, req.getDistrict());
             ps.setString(12, req.getAddressDetail());
             ps.setBigDecimal(13, oil);
-            ps.setBigDecimal(14, comm);
-            ps.setString(15, req.getRemark());
-            ps.setString(16, img);
+            ps.setLong(14, oilTypeIdIns);
+            ps.setBigDecimal(15, comm);
+            ps.setString(16, req.getRemark());
+            ps.setString(17, img);
             if (req.getLinkedMerchantId() == null) {
-                ps.setObject(17, null);
+                ps.setObject(18, null);
             } else {
-                ps.setLong(17, req.getLinkedMerchantId());
+                ps.setLong(18, req.getLinkedMerchantId());
             }
             return ps;
         }, kh);
@@ -179,10 +186,12 @@ public class AppBizDataService {
         StringBuilder sql = new StringBuilder()
                 .append("SELECT m.merchant_id, m.agent_id, m.salesman_id, m.industry_type, m.merchant_name, m.contact_name, ")
                 .append("m.contact_phone, m.longitude, m.latitude, m.province, m.city, m.district, m.address_detail, ")
-                .append("m.oil_unit_price, m.merchant_commission, m.arrears_amount, m.device_count, m.status, ")
+                .append("m.oil_unit_price, COALESCE(m.oil_type_id, 1) AS oil_type_id, ot.type_name AS oil_type_name, ")
+                .append("m.merchant_commission, m.arrears_amount, m.device_count, m.status, ")
                 .append("m.remark, m.store_image_url, m.linked_merchant_id, a.agent_name, sm.salesman_name ")
                 .append("FROM biz_env_merchant m ")
                 .append("JOIN biz_env_agent a ON a.agent_id = m.agent_id AND a.del_flag = '0' ")
+                .append("LEFT JOIN biz_env_oil_type ot ON ot.oil_type_id = COALESCE(m.oil_type_id, 1) AND ot.del_flag = '0' ")
                 .append("LEFT JOIN biz_env_salesman sm ON sm.salesman_id = m.salesman_id AND sm.del_flag = '0' ")
                 .append("WHERE m.merchant_id = ? AND m.del_flag = '0' ");
         List<Object> args = new ArrayList<>();
@@ -207,6 +216,8 @@ public class AppBizDataService {
                     row.put("district", rs.getString("district"));
                     row.put("addressDetail", rs.getString("address_detail"));
                     row.put("oilUnitPrice", rs.getBigDecimal("oil_unit_price") == null ? 0 : rs.getBigDecimal("oil_unit_price").doubleValue());
+                    row.put("oilTypeId", rs.getLong("oil_type_id"));
+                    row.put("oilTypeName", rs.getString("oil_type_name"));
                     row.put("merchantCommission", rs.getBigDecimal("merchant_commission") == null
                             ? 0
                             : rs.getBigDecimal("merchant_commission").doubleValue());
@@ -285,10 +296,11 @@ public class AppBizDataService {
         BigDecimal comm = BigDecimal.valueOf(req.getMerchantCommission() == null ? 0 : req.getMerchantCommission());
         BigDecimal lon = BigDecimal.valueOf(req.getLongitude());
         BigDecimal lat = BigDecimal.valueOf(req.getLatitude());
+        Long oilTypeIdUp = req.getOilTypeId() == null ? 1L : req.getOilTypeId();
         int n = jdbcTemplate.update(
                 "UPDATE biz_env_merchant SET industry_type = ?, merchant_name = ?, contact_name = ?, contact_phone = ?, "
                         + "longitude = ?, latitude = ?, province = ?, city = ?, district = ?, address_detail = ?, "
-                        + "oil_unit_price = ?, merchant_commission = ?, salesman_id = ?, linked_merchant_id = ?, remark = ?, "
+                        + "oil_unit_price = ?, oil_type_id = ?, merchant_commission = ?, salesman_id = ?, linked_merchant_id = ?, remark = ?, "
                         + "store_image_url = ? "
                         + "WHERE merchant_id = ? AND agent_id = ? AND del_flag = '0'",
                 req.getIndustryType(),
@@ -302,6 +314,7 @@ public class AppBizDataService {
                 req.getDistrict(),
                 req.getAddressDetail(),
                 oil,
+                oilTypeIdUp,
                 comm,
                 salesmanId,
                 req.getLinkedMerchantId(),
@@ -987,17 +1000,22 @@ public class AppBizDataService {
     public List<Map<String, Object>> listStockSummary(String openid, Long filterAgentId) {
         OpenidBizScope s = scopeService.resolve(openid);
         Long aid = resolveScopedAgentId(s, filterAgentId);
-        if (s.getUserRole() == '1' && aid == null) {
+        if ((s.getUserRole() == '1' || s.getUserRole() == '5') && aid == null) {
             return jdbcTemplate.query(
-                    "SELECT s.agent_id, a.agent_name, s.total_qty AS qty_on_hand, s.lock_qty AS qty_reserved, s.available_qty AS qty_available "
+                    "SELECT s.agent_id, a.agent_name, ot.type_name AS oil_type_name, s.stock_item_code, "
+                            + "s.total_qty AS qty_on_hand, s.lock_qty AS qty_reserved, s.available_qty AS qty_available "
                             + "FROM biz_env_agent_stock s "
                             + "JOIN biz_env_agent a ON a.agent_id = s.agent_id AND a.del_flag = '0' "
-                            + "WHERE s.stock_item_type = '1' AND (s.stock_item_code IS NULL OR s.stock_item_code = '') "
-                            + "AND s.del_flag = '0' ORDER BY s.agent_id",
+                            + "LEFT JOIN biz_env_oil_type ot ON ot.oil_type_id = CAST(NULLIF(TRIM(s.stock_item_code), '') AS UNSIGNED) "
+                            + "AND ot.del_flag = '0' "
+                            + "WHERE s.stock_item_type = '1' AND IFNULL(TRIM(s.stock_item_code), '') <> '' "
+                            + "AND s.del_flag = '0' ORDER BY s.agent_id, s.stock_item_code",
                     (rs, i) -> {
                         Map<String, Object> row = new LinkedHashMap<>();
                         row.put("agentId", rs.getLong("agent_id"));
                         row.put("agentName", rs.getString("agent_name"));
+                        row.put("oilTypeName", rs.getString("oil_type_name"));
+                        row.put("stockItemCode", rs.getString("stock_item_code"));
                         row.put("qtyOnHand", rs.getBigDecimal("qty_on_hand").doubleValue());
                         row.put("qtyReserved", rs.getBigDecimal("qty_reserved").doubleValue());
                         row.put("qtyAvailable", rs.getBigDecimal("qty_available").doubleValue());
@@ -1007,17 +1025,22 @@ public class AppBizDataService {
         if (aid == null) {
             return new ArrayList<>();
         }
-        stockService.ensureAgentRow(aid);
+        stockService.ensureAgentRow(aid, 1L);
         return jdbcTemplate.query(
-                "SELECT s.agent_id, a.agent_name, s.total_qty AS qty_on_hand, s.lock_qty AS qty_reserved, s.available_qty AS qty_available "
+                "SELECT s.agent_id, a.agent_name, ot.type_name AS oil_type_name, s.stock_item_code, "
+                        + "s.total_qty AS qty_on_hand, s.lock_qty AS qty_reserved, s.available_qty AS qty_available "
                         + "FROM biz_env_agent_stock s "
                         + "JOIN biz_env_agent a ON a.agent_id = s.agent_id AND a.del_flag = '0' "
-                        + "WHERE s.agent_id = ? AND s.stock_item_type = '1' AND (s.stock_item_code IS NULL OR s.stock_item_code = '') "
+                        + "LEFT JOIN biz_env_oil_type ot ON ot.oil_type_id = CAST(NULLIF(TRIM(s.stock_item_code), '') AS UNSIGNED) "
+                        + "AND ot.del_flag = '0' "
+                        + "WHERE s.agent_id = ? AND s.stock_item_type = '1' AND IFNULL(TRIM(s.stock_item_code), '') <> '' "
                         + "AND s.del_flag = '0'",
                 (rs, i) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("agentId", rs.getLong("agent_id"));
                     row.put("agentName", rs.getString("agent_name"));
+                    row.put("oilTypeName", rs.getString("oil_type_name"));
+                    row.put("stockItemCode", rs.getString("stock_item_code"));
                     row.put("qtyOnHand", rs.getBigDecimal("qty_on_hand").doubleValue());
                     row.put("qtyReserved", rs.getBigDecimal("qty_reserved").doubleValue());
                     row.put("qtyAvailable", rs.getBigDecimal("qty_available").doubleValue());
@@ -1029,13 +1052,13 @@ public class AppBizDataService {
     public List<Map<String, Object>> listStockFlows(String openid, Long filterAgentId) {
         OpenidBizScope s = scopeService.resolve(openid);
         Long aid = resolveScopedAgentId(s, filterAgentId);
-        if (s.getUserRole() == '1' && aid == null) {
+        if ((s.getUserRole() == '1' || s.getUserRole() == '5') && aid == null) {
             return jdbcTemplate.query(
                     "SELECT f.flow_id, f.agent_id, f.change_type AS flow_kind_code, f.related_no AS ref_no, "
                             + "f.change_qty AS qty, f.remark, f.create_time, CAST(NULL AS CHAR) AS ref_type "
                             + "FROM biz_env_agent_stock_flow f "
                             + "JOIN biz_env_agent_stock s ON s.stock_id = f.stock_id AND s.del_flag = '0' "
-                            + "WHERE s.stock_item_type = '1' AND (s.stock_item_code IS NULL OR s.stock_item_code = '') "
+                            + "WHERE s.stock_item_type = '1' AND IFNULL(TRIM(s.stock_item_code), '') <> '' "
                             + "ORDER BY f.flow_id DESC LIMIT 200",
                     (rs, i) -> flowRow(rs));
         }
@@ -1047,7 +1070,7 @@ public class AppBizDataService {
                         + "f.change_qty AS qty, f.remark, f.create_time, CAST(NULL AS CHAR) AS ref_type "
                         + "FROM biz_env_agent_stock_flow f "
                         + "JOIN biz_env_agent_stock s ON s.stock_id = f.stock_id AND s.del_flag = '0' "
-                        + "WHERE f.agent_id = ? AND s.stock_item_type = '1' AND (s.stock_item_code IS NULL OR s.stock_item_code = '') "
+                        + "WHERE f.agent_id = ? AND s.stock_item_type = '1' AND IFNULL(TRIM(s.stock_item_code), '') <> '' "
                         + "ORDER BY f.flow_id DESC LIMIT 200",
                 (rs, i) -> flowRow(rs),
                 aid);
@@ -1224,7 +1247,13 @@ public class AppBizDataService {
         jdbcTemplate.update("DELETE FROM env_mini_subject WHERE openid = ?", target);
     }
 
-    public void inboundStock(String openid, BigDecimal qty, Long agentIdForMain, String remark) {
+    public void inboundStock(
+            String openid,
+            BigDecimal qty,
+            Long agentIdForMain,
+            Long oilTypeId,
+            String qtyUnitRaw,
+            String remark) {
         OpenidBizScope s = scopeService.resolve(openid);
         char r = s.getUserRole();
         if (r != '1' && r != '2') {
@@ -1242,12 +1271,46 @@ public class AppBizDataService {
             }
             agentId = s.getAgentId();
         }
-        stockService.inboundOil(agentId, qty, remark);
+        long otId = oilTypeId == null ? 1L : oilTypeId.longValue();
+        List<Map<String, Object>> otRows = jdbcTemplate.queryForList(
+                "SELECT density_kg_per_liter, liters_per_bucket FROM biz_env_oil_type WHERE oil_type_id = ? AND del_flag = '0'",
+                otId);
+        if (otRows.isEmpty()) {
+            throw new IllegalArgumentException("油品类型不存在");
+        }
+        Map<String, Object> ot = otRows.get(0);
+        BigDecimal density = new BigDecimal(ot.get("density_kg_per_liter").toString());
+        BigDecimal litersPerBucket = new BigDecimal(ot.get("liters_per_bucket").toString());
+        char u = OilQuantityConverter.normalizeOilQtyUnit(qtyUnitRaw);
+        BigDecimal buckets = OilQuantityConverter.toBuckets(qty, u, density, litersPerBucket).setScale(4, RoundingMode.HALF_UP);
+        String rm = remark;
+        if (rm == null || rm.isEmpty()) {
+            rm = "手工入库（折算 "
+                    + buckets.stripTrailingZeros().toPlainString()
+                    + " 桶当量，入库单位 "
+                    + u
+                    + "）";
+        }
+        stockService.inboundOil(agentId, otId, buckets, rm);
+    }
+
+    public List<Map<String, Object>> listOilTypes() {
+        return jdbcTemplate.query(
+                "SELECT oil_type_id, type_name, density_kg_per_liter, liters_per_bucket "
+                        + "FROM biz_env_oil_type WHERE del_flag = '0' ORDER BY sort_order, oil_type_id",
+                (rs, i) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("oilTypeId", rs.getLong("oil_type_id"));
+                    row.put("typeName", rs.getString("type_name"));
+                    row.put("densityKgPerLiter", rs.getBigDecimal("density_kg_per_liter").doubleValue());
+                    row.put("litersPerBucket", rs.getBigDecimal("liters_per_bucket").doubleValue());
+                    return row;
+                });
     }
 
     private Long resolveScopedAgentId(OpenidBizScope s, Long filterAgentId) {
         char r = s.getUserRole();
-        if (r == '1') {
+        if (r == '1' || r == '5') {
             return filterAgentId;
         }
         if (r == '2' || r == '3') {
@@ -1338,6 +1401,7 @@ public class AppBizDataService {
         if (code == '2') return 2L;
         if (code == '3') return 3L;
         if (code == '4') return 4L;
+        if (code == '5') return 6L;
         return 1L;
     }
 

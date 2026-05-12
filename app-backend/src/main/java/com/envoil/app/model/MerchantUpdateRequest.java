@@ -48,6 +48,7 @@ public class MerchantUpdateRequest {
     private Double latitude;
 
     private Double oilUnitPrice;
+    private Long oilTypeId;
     private Double merchantCommission;
     private Long salesmanId;
     private Long linkedMerchantId;
@@ -159,6 +160,14 @@ public class MerchantUpdateRequest {
 
     public void setOilUnitPrice(Double oilUnitPrice) {
         this.oilUnitPrice = oilUnitPrice;
+    }
+
+    public Long getOilTypeId() {
+        return oilTypeId;
+    }
+
+    public void setOilTypeId(Long oilTypeId) {
+        this.oilTypeId = oilTypeId;
     }
 
     public Double getMerchantCommission() {

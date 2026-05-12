@@ -9,18 +9,36 @@ const route = useRoute();
 
 const TEST_OPENID_USERS = [
   { openid: "main-openid-001", label: "主端" },
-  { openid: "agent-openid-001", label: "代理" },
-  { openid: "sales-openid-001", label: "业务员" },
-  { openid: "merchant-openid-001", label: "商家" }
+  { openid: "agent-openid-001", label: "代理 · 广州一代" },
+  { openid: "agent-openid-002", label: "代理 · 深圳南山服务站" },
+  { openid: "agent-openid-003", label: "代理 · 东莞厚街服务站" },
+  { openid: "sales-openid-001", label: "业务员 · 广州" },
+  { openid: "sales-openid-002", label: "业务员 · 深圳" },
+  { openid: "sales-openid-003", label: "业务员 · 东莞" },
+  { openid: "merchant-openid-001", label: "商家 · 广州粤海饭店" },
+  { openid: "merchant-openid-002", label: "商家 · 深圳深南茶餐厅" },
+  { openid: "merchant-openid-003", label: "商家 · 东莞厚街砂锅粥" },
+  { openid: "ops-openid-001", label: "运维" }
 ];
 
+/** 后台 env_mini_subject 绑定账号，与内置演示账号合并 */
+const apiSubjects = ref([]);
+
 const loginOpenid = ref("merchant-openid-001");
-const testUserOptions = computed(() =>
-  TEST_OPENID_USERS.map((u) => ({
-    value: u.openid,
-    label: `${u.label}（${u.openid}）`
-  }))
-);
+const testUserOptions = computed(() => {
+  const fromApi = (apiSubjects.value || []).map((s) => ({
+    value: s.openid,
+    label: `${s.roleName}（${s.openid}）`
+  }));
+  const seen = new Set(fromApi.map((x) => x.value));
+  const merged = [...fromApi];
+  for (const u of TEST_OPENID_USERS) {
+    if (!seen.has(u.openid)) {
+      merged.push({ value: u.openid, label: `${u.label}（${u.openid}）` });
+    }
+  }
+  return merged;
+});
 const portal = ref(null);
 const loadError = ref("");
 const loading = ref(false);
@@ -28,6 +46,8 @@ const loading = ref(false);
 const canOpenBusiness = computed(() => !!portal.value?.hasBusinessAccess);
 const portalSections = computed(() => portal.value?.sections || []);
 const roleLabel = computed(() => portal.value?.role || "—");
+/** 供子页统一读取，避免 inject 侧对 portal 嵌套 ref 解包不一致 */
+const roleCode = computed(() => portal.value?.roleCode ?? "");
 const isHome = computed(() => route.name === "home");
 const headerTitle = computed(() => {
   const q = route.query.t;
@@ -43,6 +63,14 @@ const headerTitle = computed(() => {
   }
   return "环保油管理";
 });
+
+async function loadSubjectsFromApi() {
+  try {
+    apiSubjects.value = await requestJson("/app-api/portal/subjects");
+  } catch {
+    apiSubjects.value = [];
+  }
+}
 
 async function refreshPortal() {
   loadError.value = "";
@@ -76,6 +104,7 @@ provide(
   reactive({
     loginOpenid,
     portal,
+    roleCode,
     loadError,
     loading,
     refreshPortal,
@@ -87,6 +116,7 @@ provide(
 
 onMounted(() => {
   refreshPortal();
+  loadSubjectsFromApi();
 });
 </script>
 

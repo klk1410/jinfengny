@@ -1,6 +1,7 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../api.js";
+import PfSelect from "../components/PfSelect.vue";
 
 const shell = inject("appShell");
 const summary = ref([]);
@@ -9,7 +10,21 @@ const err = ref("");
 const inboundQty = ref(10);
 const inboundTargetAgentId = ref("1");
 const filterAgentId = ref("");
-const roleCode = computed(() => shell.portal?.roleCode ?? "");
+const oilTypes = ref([]);
+const inboundOilTypeId = ref("1");
+const inboundQtyUnit = ref("桶");
+const inboundQtyUnitOptions = [
+  { value: "桶", label: "桶" },
+  { value: "斤", label: "斤（按密度折）" },
+  { value: "升", label: "升（按密度折）" }
+];
+const oilTypeSelectOptions = computed(() =>
+  (oilTypes.value || []).map((x) => ({
+    value: String(x.oilTypeId),
+    label: `${x.typeName}（ρ ${x.densityKgPerLiter} kg/L）`
+  }))
+);
+const roleCode = computed(() => shell.roleCode ?? shell.portal?.roleCode ?? "");
 const isMain = computed(() => roleCode.value === "main");
 const canInbound = computed(() => roleCode.value === "main" || roleCode.value === "agent");
 
@@ -37,10 +52,12 @@ async function load() {
 async function onInbound() {
   err.value = "";
   try {
-    const oid = shell.loginOpenid;
+    const oid = typeof shell.loginOpenid === "object" && shell.loginOpenid?.value != null ? shell.loginOpenid.value : shell.loginOpenid;
     const q = new URLSearchParams();
     q.set("openid", oid);
     q.set("qty", String(inboundQty.value));
+    q.set("oilTypeId", inboundOilTypeId.value || "1");
+    q.set("qtyUnit", inboundQtyUnit.value || "桶");
     if (isMain.value) {
       q.set("agentId", inboundTargetAgentId.value);
     }
@@ -51,8 +68,22 @@ async function onInbound() {
   }
 }
 
+async function loadOilTypes() {
+  try {
+    oilTypes.value = (await requestJson("/app-api/biz/oil-types")) || [];
+    if (!oilTypes.value.find((x) => String(x.oilTypeId) === inboundOilTypeId.value) && oilTypes.value.length) {
+      inboundOilTypeId.value = String(oilTypes.value[0].oilTypeId);
+    }
+  } catch {
+    oilTypes.value = [];
+  }
+}
+
 watch(() => shell.loginOpenid, load);
-onMounted(load);
+onMounted(() => {
+  loadOilTypes();
+  load();
+});
 
 /** 1 入库 2 预扣 3 实扣 4 回滚 */
 function flowVariant(code) {
@@ -126,12 +157,21 @@ function flowQtyHint(code) {
 
     <div v-if="canInbound" class="card">
       <h3 class="sub">手工入库</h3>
+      <p class="hint-text">选择油品与入库单位，服务端按密度折算为仓储统一的「桶」当量。</p>
       <div v-if="isMain" class="row">
         <label>代理 ID</label>
         <input v-model="inboundTargetAgentId" class="inp" type="text" />
       </div>
+      <div class="row row--select">
+        <label>油品</label>
+        <PfSelect v-model="inboundOilTypeId" class="grow" :options="oilTypeSelectOptions" placeholder="油品种类" />
+      </div>
+      <div class="row row--select">
+        <label>数量单位</label>
+        <PfSelect v-model="inboundQtyUnit" class="grow" :options="inboundQtyUnitOptions" placeholder="单位" />
+      </div>
       <div class="row">
-        <label>数量(桶)</label>
+        <label>数量</label>
         <input v-model.number="inboundQty" class="inp" type="number" min="0.01" step="0.01" />
       </div>
       <button type="button" class="btn" @click="onInbound">入库</button>
@@ -143,7 +183,8 @@ function flowQtyHint(code) {
       <div v-else class="dc-stack">
         <article v-for="(s, i) in summary" :key="i" class="dc-card dc-card--white">
           <div class="line strong">{{ s.agentName }}（#{{ s.agentId }}）</div>
-          <div class="line">在库 {{ s.qtyOnHand }} · 预扣 {{ s.qtyReserved }} · 可用 {{ s.qtyAvailable }}</div>
+          <div v-if="s.oilTypeName" class="line muted-line">{{ s.oilTypeName }}</div>
+          <div class="line">在库 {{ s.qtyOnHand }} · 预扣 {{ s.qtyReserved }} · 可用 {{ s.qtyAvailable }}（桶当量）</div>
         </article>
       </div>
     </div>
@@ -228,6 +269,22 @@ function flowQtyHint(code) {
 }
 .btn.secondary {
   background: #64748b;
+}
+.hint-text {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+.row--select {
+  grid-template-columns: 72px 1fr;
+}
+.grow {
+  min-width: 0;
+}
+.muted-line {
+  font-size: 12px;
+  color: #64748b;
 }
 .muted {
   color: #64748b;

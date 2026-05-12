@@ -208,13 +208,20 @@ public class AppBizController {
         return ApiResponse.ok(bizDataService.listStockFlows(openid, agentId));
     }
 
+    @GetMapping("/oil-types")
+    public ApiResponse<?> oilTypes() {
+        return ApiResponse.ok(bizDataService.listOilTypes());
+    }
+
     @PostMapping("/stock/inbound")
     public ApiResponse<?> stockInbound(
             @RequestParam String openid,
             @RequestParam double qty,
             @RequestParam(required = false) Long agentId,
+            @RequestParam(required = false, defaultValue = "1") Long oilTypeId,
+            @RequestParam(required = false) String qtyUnit,
             @RequestParam(required = false) String remark) {
-        bizDataService.inboundStock(openid, BigDecimal.valueOf(qty), agentId, remark);
+        bizDataService.inboundStock(openid, BigDecimal.valueOf(qty), agentId, oilTypeId, qtyUnit, remark);
         return ApiResponse.ok(null);
     }
 

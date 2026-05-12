@@ -45,6 +45,9 @@ public class AppOpenidBizScopeService {
         if ("merchant-openid-001".equals(openid)) {
             return new OpenidBizScope('4', 1L, 1L, null);
         }
+        if ("ops-openid-001".equals(openid)) {
+            return new OpenidBizScope('5', null, null, null);
+        }
         return new OpenidBizScope('1', null, null, null);
     }
 

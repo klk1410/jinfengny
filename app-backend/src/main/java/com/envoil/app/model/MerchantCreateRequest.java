@@ -43,6 +43,9 @@ public class MerchantCreateRequest {
     /** 单价（元/桶），未传则按 0 */
     private Double oilUnitPrice;
 
+    /** 主营油品，默认后台为首条标准油 */
+    private Long oilTypeId;
+
     private Double merchantCommission;
     private Long salesmanId;
 
@@ -157,6 +160,14 @@ public class MerchantCreateRequest {
 
     public void setOilUnitPrice(Double oilUnitPrice) {
         this.oilUnitPrice = oilUnitPrice;
+    }
+
+    public Long getOilTypeId() {
+        return oilTypeId;
+    }
+
+    public void setOilTypeId(Long oilTypeId) {
+        this.oilTypeId = oilTypeId;
     }
 
     public Double getMerchantCommission() {

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, inject, onMounted, ref, watch } from "vue";
+import { computed, inject, onMounted, ref, unref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { requestJson } from "../../api.js";
 import "./promo-form.css";
@@ -7,7 +7,7 @@ import { entityOnOffPillClass } from "../../utils/statusDisplay.js";
 
 const shell = inject("appShell");
 const router = useRouter();
-const roleCode = computed(() => shell.portal?.roleCode ?? "");
+const roleCode = computed(() => shell.roleCode ?? unref(shell.portal)?.roleCode ?? "");
 const canCreateStore = computed(
   () => roleCode.value === "main" || roleCode.value === "agent" || roleCode.value === "sales" || roleCode.value === "merchant"
 );
@@ -17,7 +17,7 @@ const err = ref("");
 async function load() {
   err.value = "";
   try {
-    const oid = shell.loginOpenid;
+    const oid = unref(shell.loginOpenid);
     rows.value = await requestJson(`/app-api/biz/merchants?openid=${encodeURIComponent(oid)}`);
   } catch (e) {
     err.value = e.message || String(e);

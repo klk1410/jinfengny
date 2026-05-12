@@ -4,16 +4,23 @@ import { requestJson } from "../api.js";
 import PfSelect from "../components/PfSelect.vue";
 
 const shell = inject("appShell");
-const roleCode = computed(() => shell.portal?.roleCode ?? "");
+const roleCode = computed(() => shell.roleCode ?? shell.portal?.roleCode ?? "");
 const merchants = ref([]);
 const err = ref("");
 const busy = ref(false);
+
+const qtyUnitOptions = [
+  { value: "桶", label: "桶" },
+  { value: "斤", label: "斤" },
+  { value: "升", label: "升" }
+];
 
 const form = ref({
   merchantId: "",
   toMerchantId: "",
   orderType: "加油",
-  bucketCount: 1
+  bucketCount: 1,
+  qtyUnit: "桶"
 });
 
 const currentMerchant = computed(() => {
@@ -101,8 +108,8 @@ async function submitWithPay(payType) {
     }
     if (form.value.orderType === "加油") {
       const n = Number(form.value.bucketCount);
-      if (!n || n < 1) {
-        throw new Error("请填写桶数");
+      if (!n || n < 0.01) {
+        throw new Error("请填写有效数量");
       }
     }
     if (form.value.orderType === "转移商家") {
@@ -121,6 +128,7 @@ async function submitWithPay(payType) {
       openid: shell.loginOpenid,
       orderType: form.value.orderType,
       bucketCount: Number(form.value.bucketCount),
+      oilQtyUnit: form.value.orderType === "加油" ? form.value.qtyUnit : undefined,
       payType
     };
     if (roleCode.value !== "merchant") {
@@ -196,12 +204,16 @@ onMounted(loadMerchants);
     <div class="card">
       <h3 class="sub">订单类型</h3>
       <PfSelect v-model="form.orderType" :options="orderTypeSelectOptions" placeholder="订单类型" />
+      <div v-if="form.orderType === '加油'" class="row mt row-unit">
+        <label>单位</label>
+        <PfSelect v-model="form.qtyUnit" class="full" :options="qtyUnitOptions" placeholder="计量单位" />
+      </div>
       <div v-if="form.orderType === '加油'" class="row mt">
-        <label>桶数</label>
-        <input v-model.number="form.bucketCount" class="inp" type="number" min="1" step="1" />
+        <label>数量</label>
+        <input v-model.number="form.bucketCount" class="inp" type="number" min="0.01" step="0.01" />
       </div>
       <p v-if="form.orderType === '加油' && currentMerchant" class="hint">
-        按门店油价 ¥{{ unitPriceForCalc }}/桶 计费（不在订单中单独展示单价）
+        单价为 ¥{{ unitPriceForCalc }}/桶；{{ form.qtyUnit }}会先按门店油品密度折算为桶当量再计费。
       </p>
       <p v-if="form.orderType === '维护'" class="hint">维护单按系统规则计价（当前为 0 元展示）。</p>
       <p v-if="form.orderType === '转移商家'" class="hint">
@@ -268,6 +280,9 @@ onMounted(loadMerchants);
 }
 .row.mt {
   margin-top: 10px;
+}
+.row-unit :deep(.pf-select) {
+  width: 100%;
 }
 .inp {
   border: 1px solid #d0d7e2;

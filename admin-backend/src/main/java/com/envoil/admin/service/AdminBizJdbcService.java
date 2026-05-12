@@ -74,6 +74,10 @@ public class AdminBizJdbcService {
                 "SELECT COUNT(*) FROM biz_env_order WHERE del_flag='0' AND status IN ('0','1')"));
         s.setWorkPendingCount(count(
                 "SELECT COUNT(*) FROM biz_env_work_order WHERE del_flag='0' AND status IN ('0','1')"));
+        s.setMerchantAuditPendingCount(count(
+                "SELECT COUNT(*) FROM biz_env_merchant_audit WHERE del_flag='0' AND status='0'"));
+        s.setDeviceEventAuditPendingCount(count(
+                "SELECT COUNT(*) FROM biz_env_device_event_audit WHERE del_flag='0' AND status='0'"));
         return s;
     }
 

@@ -56,7 +56,7 @@ public class AppBizWorkOrderService {
                 .append("SELECT w.work_order_no, w.order_no, w.work_order_time, w.work_order_type, w.status, ")
                 .append("w.agent_id, w.merchant_id, w.receive_salesman_id, w.accept_deadline, w.work_start_time, w.work_end_time, ")
                 .append("m.merchant_name, m.longitude AS merchant_lng, m.latitude AS merchant_lat, ")
-                .append("ord.estimated_work_hours, ord.to_merchant_id, ")
+                .append("ord.estimated_work_hours, ord.to_merchant_id, COALESCE(ord.amount_payable, 0) AS order_amount, ")
                 .append("rs.salesman_name AS receive_salesman_name, tm.merchant_name AS to_merchant_name ")
                 .append("FROM biz_env_work_order w ")
                 .append("JOIN biz_env_merchant m ON m.merchant_id = w.merchant_id AND m.del_flag = '0' ")
@@ -104,6 +104,7 @@ public class AppBizWorkOrderService {
             row.put("canForceAssign", expired);
             row.put("toMerchantId", rs.getObject("to_merchant_id") == null ? null : rs.getLong("to_merchant_id"));
             row.put("toMerchantName", rs.getString("to_merchant_name"));
+            row.put("orderAmount", rs.getBigDecimal("order_amount") == null ? null : rs.getBigDecimal("order_amount").doubleValue());
             return row;
         });
     }
@@ -286,7 +287,11 @@ public class AppBizWorkOrderService {
                     : ((BigDecimal) ord.get("amount_payable")).setScale(2, RoundingMode.HALF_UP);
             String payType = ord.get("pay_type") == null ? "" : String.valueOf(ord.get("pay_type")).trim();
             if ("1".equals(ot)) {
-                stockService.finalizeOilDeduction(agId, orderNo, buckets);
+                long oilTypeId = jdbcTemplate.query(
+                        "SELECT COALESCE(m.oil_type_id, 1) AS oid FROM biz_env_merchant m WHERE m.merchant_id = ? AND m.del_flag = '0'",
+                        rs -> rs.next() ? rs.getLong("oid") : 1L,
+                        merId);
+                stockService.finalizeOilDeduction(agId, oilTypeId, orderNo, buckets);
             }
             if ("4".equals(ot)) {
                 String dn = req == null || req.getDeviceNo() == null ? "" : req.getDeviceNo().trim();
@@ -467,6 +472,9 @@ public class AppBizWorkOrderService {
             args.add(scope.getSalesmanId());
             args.add(scope.getSalesmanId());
             args.add(scope.getAgentId());
+            return;
+        }
+        if (r == '5') {
             return;
         }
         sql.append(" AND 1 = 0");

@@ -22,8 +22,14 @@ public class OrderCreateRequest {
     private Double unitPrice;
 
     @NotNull(message = "数量不能为空")
-    @DecimalMin(value = "1", inclusive = true, message = "数量最少1桶")
+    @DecimalMin(value = "0.01", inclusive = true, message = "数量须大于 0")
     private Double bucketCount;
+
+    /**
+     * 加油单数量对应的单位：桶 / 斤 / 升（或与 {@link com.envoil.app.util.OilQuantityConverter} 兼容的简写）。
+     * 不传则按桶。
+     */
+    private String oilQtyUnit;
 
     @NotBlank(message = "支付方式不能为空")
     private String payType;
@@ -74,6 +80,14 @@ public class OrderCreateRequest {
 
     public void setBucketCount(Double bucketCount) {
         this.bucketCount = bucketCount;
+    }
+
+    public String getOilQtyUnit() {
+        return oilQtyUnit;
+    }
+
+    public void setOilQtyUnit(String oilQtyUnit) {
+        this.oilQtyUnit = oilQtyUnit;
     }
 
     public String getPayType() {

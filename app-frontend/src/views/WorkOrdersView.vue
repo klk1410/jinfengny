@@ -8,7 +8,7 @@ const shell = inject("appShell");
 const rows = ref([]);
 const err = ref("");
 
-const roleCode = computed(() => shell.portal?.roleCode ?? "");
+const roleCode = computed(() => shell.roleCode ?? shell.portal?.roleCode ?? "");
 
 const finishOpen = ref(false);
 const finishNo = ref("");
@@ -378,6 +378,10 @@ function openMerchantMap(w) {
           <div class="wo-field">
             <span class="wo-k">订单号</span>
             <span class="wo-v wo-v--order">{{ w.orderNo || "—" }}</span>
+          </div>
+          <div v-if="w.orderAmount != null" class="wo-field">
+            <span class="wo-k">订单金额</span>
+            <span class="wo-v">¥{{ Number(w.orderAmount).toFixed(2) }}</span>
           </div>
           <div class="wo-field">
             <span class="wo-k">店铺</span>

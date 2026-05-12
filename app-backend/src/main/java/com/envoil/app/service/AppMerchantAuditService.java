@@ -425,6 +425,7 @@ public class AppMerchantAuditService {
         m.put("longitude", r.getLongitude());
         m.put("latitude", r.getLatitude());
         m.put("oilUnitPrice", r.getOilUnitPrice());
+        m.put("oilTypeId", r.getOilTypeId());
         m.put("merchantCommission", r.getMerchantCommission());
         m.put("salesmanId", r.getSalesmanId());
         m.put("linkedMerchantId", r.getLinkedMerchantId());
@@ -450,6 +451,7 @@ public class AppMerchantAuditService {
         m.put("longitude", r.getLongitude());
         m.put("latitude", r.getLatitude());
         m.put("oilUnitPrice", r.getOilUnitPrice());
+        m.put("oilTypeId", r.getOilTypeId());
         m.put("merchantCommission", r.getMerchantCommission());
         m.put("salesmanId", r.getSalesmanId());
         m.put("linkedMerchantId", r.getLinkedMerchantId());

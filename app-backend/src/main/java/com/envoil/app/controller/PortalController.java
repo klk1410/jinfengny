@@ -21,4 +21,9 @@ public class PortalController {
     public ApiResponse<?> modules(@RequestParam String openid) {
         return ApiResponse.ok(appPortalJdbcService.portalModules(openid));
     }
+
+    @GetMapping("/subjects")
+    public ApiResponse<?> subjects() {
+        return ApiResponse.ok(appPortalJdbcService.listSubjects());
+    }
 }

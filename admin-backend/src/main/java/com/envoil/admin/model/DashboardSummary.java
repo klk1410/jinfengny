@@ -7,6 +7,10 @@ public class DashboardSummary {
     private long merchantCount;
     private long orderPendingCount;
     private long workPendingCount;
+    /** 店铺资料等待审批 */
+    private long merchantAuditPendingCount;
+    /** 设备操作等待审批 */
+    private long deviceEventAuditPendingCount;
 
     public long getAgentCount() {
         return agentCount;
@@ -46,5 +50,21 @@ public class DashboardSummary {
 
     public void setWorkPendingCount(long workPendingCount) {
         this.workPendingCount = workPendingCount;
+    }
+
+    public long getMerchantAuditPendingCount() {
+        return merchantAuditPendingCount;
+    }
+
+    public void setMerchantAuditPendingCount(long merchantAuditPendingCount) {
+        this.merchantAuditPendingCount = merchantAuditPendingCount;
+    }
+
+    public long getDeviceEventAuditPendingCount() {
+        return deviceEventAuditPendingCount;
+    }
+
+    public void setDeviceEventAuditPendingCount(long deviceEventAuditPendingCount) {
+        this.deviceEventAuditPendingCount = deviceEventAuditPendingCount;
     }
 }

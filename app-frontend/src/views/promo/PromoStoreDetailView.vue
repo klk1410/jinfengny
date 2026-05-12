@@ -23,6 +23,8 @@ const city = ref("");
 const district = ref("");
 const addressDetail = ref("");
 const oilUnitPrice = ref(0);
+const oilTypeId = ref("1");
+const oilTypes = ref([]);
 const merchantCommission = ref(0);
 const salesmanId = ref("");
 const remark = ref("");
@@ -50,6 +52,21 @@ const salesmanSelectOptions = computed(() => [
   }))
 ]);
 
+const oilTypeSelectOptions = computed(() =>
+  (oilTypes.value || []).map((x) => ({
+    value: String(x.oilTypeId),
+    label: x.typeName
+  }))
+);
+
+async function loadOilTypes() {
+  try {
+    oilTypes.value = (await requestJson("/app-api/biz/oil-types")) || [];
+  } catch {
+    oilTypes.value = [];
+  }
+}
+
 async function loadPickers() {
   const oid = encodeURIComponent(shell.loginOpenid);
   salesmen.value = (await requestJson(`/app-api/biz/salesmen?openid=${oid}`)) || [];
@@ -68,6 +85,7 @@ function applyDetail(d) {
   district.value = d.district || "";
   addressDetail.value = d.addressDetail || "";
   oilUnitPrice.value = d.oilUnitPrice ?? 0;
+  oilTypeId.value = d.oilTypeId != null ? String(d.oilTypeId) : "1";
   merchantCommission.value = d.merchantCommission ?? 0;
   salesmanId.value = d.salesmanId != null ? String(d.salesmanId) : "";
   remark.value = d.remark || "";
@@ -133,6 +151,7 @@ function buildWriteBody() {
     district: district.value.trim(),
     addressDetail: addressDetail.value.trim(),
     oilUnitPrice: Number(oilUnitPrice.value) || 0,
+    oilTypeId: Number(oilTypeId.value) || 1,
     merchantCommission: Number(merchantCommission.value) || 0,
     remark: remark.value.trim() || null,
     storeImageUrl: storeImageUrl.value || null,
@@ -216,7 +235,10 @@ watch(
     load();
   }
 );
-onMounted(load);
+onMounted(() => {
+  loadOilTypes();
+  load();
+});
 </script>
 
 <template>
@@ -307,6 +329,13 @@ onMounted(load);
         </article>
 
         <article class="dc-card dc-card--white">
+        <div class="pf-row">
+          <div class="pf-label req">主营油品</div>
+          <div class="pf-field-wrap pf-field-wrap--select">
+            <PfSelect v-model="oilTypeId" :options="oilTypeSelectOptions" placeholder="油品种类" :disabled="readOnly" />
+          </div>
+        </div>
+
         <div class="pf-row">
           <div class="pf-label">单价(元/桶)</div>
           <div class="pf-field-wrap">
