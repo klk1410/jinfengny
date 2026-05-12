@@ -93,7 +93,7 @@ public class AdminBizJdbcService {
     public List<OrderView> listOrders() {
         String sql = ""
                 + "SELECT o.order_no, m.merchant_name, o.amount_payable, o.order_time, "
-                + "  CASE o.order_type WHEN '1' THEN '加油' WHEN '2' THEN '维护' ELSE o.order_type END AS order_type_label, "
+                + "  CASE o.order_type WHEN '1' THEN '加油' WHEN '2' THEN '维护' WHEN '4' THEN '转移商家' ELSE o.order_type END AS order_type_label, "
                 + "  CASE o.status "
                 + "    WHEN '0' THEN '待确认' WHEN '1' THEN '待分配' WHEN '2' THEN '已接收' "
                 + "    WHEN '3' THEN '已完成' WHEN '4' THEN '订单取消' ELSE o.status END AS status_label, "
@@ -108,7 +108,7 @@ public class AdminBizJdbcService {
     public List<WorkOrderView> listWorkOrders() {
         String sql = ""
                 + "SELECT w.work_order_no, w.order_no, m.merchant_name, w.work_order_time, "
-                + "  CASE w.work_order_type WHEN '1' THEN '加油' WHEN '2' THEN '维护' WHEN '3' THEN '外出访问' ELSE w.work_order_type END AS work_order_type_label, "
+                + "  CASE w.work_order_type WHEN '1' THEN '加油' WHEN '2' THEN '维护' WHEN '3' THEN '外出访问' WHEN '4' THEN '转移商家' ELSE w.work_order_type END AS work_order_type_label, "
                 + "  CASE w.status "
                 + "    WHEN '0' THEN '待确认' WHEN '1' THEN '待分配' WHEN '2' THEN '已接收' "
                 + "    WHEN '3' THEN '已完成' WHEN '4' THEN '工单取消' ELSE w.status END AS status_label, "

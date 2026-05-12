@@ -1221,19 +1221,19 @@ public class AppBizDataService {
 
     private static String labelDeviceStatus(String code) {
         if ("0".equals(code)) {
-            return "在库";
+            return "在库（可调拨·未装机）";
         }
         if ("1".equals(code)) {
-            return "在商家";
+            return "在店（已装机·运营中）";
         }
         if ("2".equals(code)) {
-            return "维修中";
+            return "维修中（暂停使用）";
         }
         if ("3".equals(code)) {
-            return "停用";
+            return "停用（未报废）";
         }
         if ("4".equals(code)) {
-            return "报废";
+            return "报废（终态·已下线）";
         }
         return code == null ? "" : code;
     }

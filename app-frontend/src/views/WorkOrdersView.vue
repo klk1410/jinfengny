@@ -10,6 +10,8 @@ const roleCode = computed(() => shell.portal?.roleCode ?? "");
 
 const finishOpen = ref(false);
 const finishNo = ref("");
+const finishRow = ref(null);
+const finishDeviceNo = ref("");
 const finishLines = ref([]);
 const finishBusy = ref(false);
 
@@ -61,9 +63,11 @@ async function onAssign(no) {
   }
 }
 
-async function openFinishDialog(no) {
+async function openFinishDialog(w) {
   err.value = "";
-  finishNo.value = no;
+  finishRow.value = w;
+  finishNo.value = w.workOrderNo;
+  finishDeviceNo.value = "";
   finishBusy.value = true;
   finishOpen.value = true;
   finishLines.value = [];
@@ -83,6 +87,7 @@ async function openFinishDialog(no) {
   } catch (e) {
     err.value = e.message || String(e);
     finishOpen.value = false;
+    finishRow.value = null;
   } finally {
     finishBusy.value = false;
   }
@@ -91,6 +96,8 @@ async function openFinishDialog(no) {
 function closeFinishDialog() {
   finishOpen.value = false;
   finishNo.value = "";
+  finishRow.value = null;
+  finishDeviceNo.value = "";
   finishLines.value = [];
 }
 
@@ -104,6 +111,13 @@ async function submitFinish() {
       consumes.push({ typeId: row.typeId, qty: q });
     }
   }
+  if (finishRow.value && finishRow.value.workOrderTypeCode === "4") {
+    const dn = finishDeviceNo.value.trim();
+    if (!dn) {
+      err.value = "请填写要转移的设备编号";
+      return;
+    }
+  }
   if (roleCode.value === "sales") {
     for (const row of finishLines.value) {
       const q = Number(row.qty);
@@ -115,12 +129,16 @@ async function submitFinish() {
   }
   finishBusy.value = true;
   try {
+    const body = { accessoryConsumes: consumes };
+    if (finishRow.value && finishRow.value.workOrderTypeCode === "4") {
+      body.deviceNo = finishDeviceNo.value.trim();
+    }
     await requestJson(
       `/app-api/work-order/${encodeURIComponent(finishNo.value)}/finish?openid=${encodeURIComponent(oid)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accessoryConsumes: consumes })
+        body: JSON.stringify(body)
       }
     );
     closeFinishDialog();
@@ -133,16 +151,32 @@ async function submitFinish() {
 }
 
 async function onFinishAgentMain(no) {
-  if (!window.confirm("确认完工？（未填写配件消耗，将不扣减配件库）")) {
+  const w = rows.value.find((r) => r.workOrderNo === no);
+  let deviceNo = null;
+  if (w && w.workOrderTypeCode === "4") {
+    const raw = window.prompt("转移商家完工：请输入设备编号", "");
+    if (raw == null) {
+      return;
+    }
+    deviceNo = raw.trim();
+    if (!deviceNo) {
+      err.value = "设备编号不能为空";
+      return;
+    }
+  } else if (!window.confirm("确认完工？（未填写配件消耗，将不扣减配件库）")) {
     return;
   }
   err.value = "";
   try {
     const oid = shell.loginOpenid;
+    const body = { accessoryConsumes: [] };
+    if (deviceNo) {
+      body.deviceNo = deviceNo;
+    }
     await requestJson(`/app-api/work-order/${encodeURIComponent(no)}/finish?openid=${encodeURIComponent(oid)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ accessoryConsumes: [] })
+      body: JSON.stringify(body)
     });
     await load();
   } catch (e) {
@@ -195,6 +229,9 @@ onMounted(load);
       <div v-for="(w, i) in rows" :key="i" class="item">
         <div class="line strong">{{ w.workOrderNo }}</div>
         <div class="line muted">订单 {{ w.orderNo || "—" }} · {{ w.merchantName }}</div>
+        <div v-if="w.workOrderTypeCode === '4' && w.toMerchantName" class="line muted">
+          目标门店 {{ w.toMerchantName }}<template v-if="w.toMerchantId">（{{ w.toMerchantId }}）</template>
+        </div>
         <div class="line">{{ w.workOrderType }} · {{ w.status }}</div>
         <div v-if="w.acceptDeadline" class="line muted">
           抢单截止 {{ w.acceptDeadline }}
@@ -208,7 +245,7 @@ onMounted(load);
             v-if="showFinish(w) && roleCode === 'sales'"
             type="button"
             class="btn-sm ok"
-            @click="openFinishDialog(w.workOrderNo)"
+            @click="openFinishDialog(w)"
           >
             结单
           </button>
@@ -221,8 +258,17 @@ onMounted(load);
 
     <div v-if="finishOpen" class="mask" @click.self="closeFinishDialog">
       <div class="dialog">
-        <h3 class="dlg-title">结单 · 配件消耗</h3>
-        <p class="dlg-hint">请填写本次工单消耗的配件数量（可为 0）；提交后从本代理配件库存自动扣减。</p>
+        <h3 class="dlg-title">
+          {{ finishRow && finishRow.workOrderTypeCode === "4" ? "结单 · 转移商家" : "结单 · 配件消耗" }}
+        </h3>
+        <p v-if="finishRow && finishRow.workOrderTypeCode === '4'" class="dlg-hint">
+          请填写从「{{ finishRow.merchantName }}」转至「{{ finishRow.toMerchantName || "目标门店" }}」的设备编号；可选填配件消耗。
+        </p>
+        <p v-else class="dlg-hint">请填写本次工单消耗的配件数量（可为 0）；提交后从本代理配件库存自动扣减。</p>
+        <div v-if="finishRow && finishRow.workOrderTypeCode === '4'" class="dlg-device">
+          <label class="dlg-lab">设备编号</label>
+          <input v-model="finishDeviceNo" class="dlg-inp-full" type="text" placeholder="必填" />
+        </div>
         <p v-if="finishBusy" class="muted">加载中…</p>
         <div v-else class="dlg-body">
           <div v-for="(row, j) in finishLines" :key="j" class="dlg-row">
@@ -331,6 +377,23 @@ onMounted(load);
   font-size: 12px;
   color: #64748b;
   line-height: 1.45;
+}
+.dlg-device {
+  margin-bottom: 12px;
+}
+.dlg-lab {
+  display: block;
+  font-size: 12px;
+  color: #334155;
+  margin-bottom: 6px;
+}
+.dlg-inp-full {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d0d7e2;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 14px;
 }
 .dlg-body {
   max-height: 50vh;

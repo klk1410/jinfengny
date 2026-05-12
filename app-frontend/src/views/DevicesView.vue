@@ -1,6 +1,8 @@
 <script setup>
 import { inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../api.js";
+import "../styles/deviceStatusBadge.css";
+import { deviceStatusPillClass } from "../utils/deviceStatusDisplay.js";
 
 const shell = inject("appShell");
 const rows = ref([]);
@@ -29,7 +31,10 @@ onMounted(load);
       <div v-if="!rows.length" class="muted">暂无数据</div>
       <div v-for="(d, i) in rows" :key="i" class="item">
         <div class="line strong">{{ d.deviceNo }}</div>
-        <div class="line">{{ d.deviceType }} · {{ d.deviceStatus }}</div>
+        <div class="line meta-row">
+          <span>{{ d.deviceType }}</span>
+          <span :class="deviceStatusPillClass(d.deviceStatusCode)">{{ d.deviceStatus }}</span>
+        </div>
         <div class="line muted">
           门店 {{ d.merchantName || "—" }}{{ d.merchantId != null ? "（" + d.merchantId + "）" : "" }} · 代理
           {{ d.agentName ? d.agentName + "（" + d.agentId + "）" : "#" + d.agentId }}
@@ -76,5 +81,12 @@ onMounted(load);
 }
 .strong {
   font-weight: 600;
+}
+.meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 </style>

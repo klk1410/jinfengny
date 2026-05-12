@@ -69,6 +69,10 @@ function orderMidLine(o) {
     const b = o.bucketCount != null ? `${o.bucketCount} 桶` : "";
     return `${name} · 加油${b ? " · " + b : ""} · ${pay}`;
   }
+  if (o.orderTypeCode === "4" || o.orderType === "转移商家") {
+    const to = o.toMerchantName ? ` → ${o.toMerchantName}` : "";
+    return `${name}${to} · 转移商家 · ${pay}`;
+  }
   return `${name} · ${o.orderType || "—"} · ${pay}`;
 }
 

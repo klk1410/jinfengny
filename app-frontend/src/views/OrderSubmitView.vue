@@ -10,6 +10,7 @@ const busy = ref(false);
 
 const form = ref({
   merchantId: "",
+  toMerchantId: "",
   orderType: "加油",
   bucketCount: 1
 });
@@ -36,6 +37,16 @@ const amountTotal = computed(() => {
   }
   const n = Number(form.value.bucketCount) || 0;
   return Math.round(unitPriceForCalc.value * n * 100) / 100;
+});
+
+const canTransferMerchant = computed(() => roleCode.value !== "merchant");
+
+const transferTargetOptions = computed(() => {
+  const src = form.value.merchantId;
+  if (!src) {
+    return [];
+  }
+  return merchants.value.filter((m) => String(m.merchantId) !== String(src));
 });
 
 async function loadMerchants() {
@@ -68,6 +79,18 @@ async function submitWithPay(payType) {
         throw new Error("请填写桶数");
       }
     }
+    if (form.value.orderType === "转移商家") {
+      if (!canTransferMerchant.value) {
+        throw new Error("转移商家订单请由代理或主端发起");
+      }
+      const to = Number(form.value.toMerchantId);
+      if (!to) {
+        throw new Error("请选择目标门店");
+      }
+      if (String(form.value.merchantId) === String(form.value.toMerchantId)) {
+        throw new Error("源门店与目标门店不能相同");
+      }
+    }
     const body = {
       openid: shell.loginOpenid,
       orderType: form.value.orderType,
@@ -77,12 +100,15 @@ async function submitWithPay(payType) {
     if (roleCode.value !== "merchant") {
       body.merchantId = Number(form.value.merchantId);
     }
+    if (form.value.orderType === "转移商家") {
+      body.toMerchantId = Number(form.value.toMerchantId);
+    }
     await requestJson("/app-api/order/create", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     });
-    if (form.value.orderType === "维护") {
+    if (form.value.orderType === "维护" || form.value.orderType === "转移商家") {
       form.value.bucketCount = 1;
     }
     alert("订单已提交");
@@ -97,8 +123,19 @@ watch(() => shell.loginOpenid, loadMerchants);
 watch(
   () => form.value.orderType,
   (t) => {
-    if (t === "维护" && (!form.value.bucketCount || form.value.bucketCount < 1)) {
+    if ((t === "维护" || t === "转移商家") && (!form.value.bucketCount || form.value.bucketCount < 1)) {
       form.value.bucketCount = 1;
+    }
+    if (t !== "转移商家") {
+      form.value.toMerchantId = "";
+    }
+  }
+);
+watch(
+  () => form.value.merchantId,
+  () => {
+    if (form.value.orderType === "转移商家" && form.value.toMerchantId === form.value.merchantId) {
+      form.value.toMerchantId = "";
     }
   }
 );
@@ -112,6 +149,7 @@ onMounted(loadMerchants);
 
     <div v-if="roleCode !== 'merchant'" class="card">
       <h3 class="sub">选择商家</h3>
+      <p v-if="form.orderType === '转移商家'" class="hint">转移商家：先选<strong>设备当前所在</strong>门店（源门店），再选目标门店。</p>
       <select v-model="form.merchantId" class="inp full">
         <option disabled value="">请选择商家</option>
         <option v-for="m in merchants" :key="m.merchantId" :value="String(m.merchantId)">
@@ -128,11 +166,23 @@ onMounted(loadMerchants);
       <p v-else class="muted">未找到绑定门店，请联系管理员。</p>
     </div>
 
+    <div v-if="form.orderType === '转移商家' && canTransferMerchant" class="card">
+      <h3 class="sub">目标门店</h3>
+      <select v-model="form.toMerchantId" class="inp full">
+        <option disabled value="">请选择目标门店</option>
+        <option v-for="m in transferTargetOptions" :key="m.merchantId" :value="String(m.merchantId)">
+          {{ m.merchantName }}（{{ m.merchantId }}）
+        </option>
+      </select>
+      <p v-if="form.merchantId && !transferTargetOptions.length" class="hint">本代理下无其他可选门店。</p>
+    </div>
+
     <div class="card">
       <h3 class="sub">订单类型</h3>
       <select v-model="form.orderType" class="inp full">
         <option>加油</option>
         <option>维护</option>
+        <option v-if="canTransferMerchant">转移商家</option>
       </select>
       <div v-if="form.orderType === '加油'" class="row mt">
         <label>桶数</label>
@@ -142,6 +192,9 @@ onMounted(loadMerchants);
         按门店油价 ¥{{ unitPriceForCalc }}/桶 计费（不在订单中单独展示单价）
       </p>
       <p v-if="form.orderType === '维护'" class="hint">维护单按系统规则计价（当前为 0 元展示）。</p>
+      <p v-if="form.orderType === '转移商家'" class="hint">
+        确认订单并完工后，由业务员在工单结单时填写设备编号，系统将设备从源门店迁至目标门店。
+      </p>
     </div>
 
     <div class="footer-bar">

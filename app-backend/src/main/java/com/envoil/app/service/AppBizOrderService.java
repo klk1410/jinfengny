@@ -76,6 +76,28 @@ public class AppBizOrderService {
                 buckets = BigDecimal.ONE;
             }
         }
+        Long toMerchantIdRow = null;
+        if (orderType == '4') {
+            if (request.getToMerchantId() == null) {
+                throw new IllegalArgumentException("转移商家请选择目标门店");
+            }
+            if (request.getToMerchantId().longValue() == merchantId) {
+                throw new IllegalArgumentException("源门店与目标门店不能相同");
+            }
+            Map<String, Object> toMer = loadMerchant(request.getToMerchantId());
+            if (toMer == null) {
+                throw new IllegalArgumentException("目标门店不存在");
+            }
+            if (!canAccessMerchant(scope, toMer)) {
+                throw new IllegalArgumentException("无权选择该目标门店");
+            }
+            long aidSrc = ((Number) merchant.get("agent_id")).longValue();
+            long aidTo = ((Number) toMer.get("agent_id")).longValue();
+            if (aidSrc != aidTo) {
+                throw new IllegalArgumentException("源门店与目标门店须属同一代理");
+            }
+            toMerchantIdRow = request.getToMerchantId();
+        }
         BigDecimal amountTotal = unit.multiply(buckets).setScale(2, RoundingMode.HALF_UP);
         BigDecimal discount = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         BigDecimal amountPayable = amountTotal.subtract(discount).setScale(2, RoundingMode.HALF_UP);
@@ -84,11 +106,12 @@ public class AppBizOrderService {
                 + String.format("%02d", (int) (Math.random() * 100));
 
         jdbcTemplate.update(
-                "INSERT INTO biz_env_order (order_no, order_time, merchant_id, order_type, oil_unit_price, "
+                "INSERT INTO biz_env_order (order_no, order_time, merchant_id, to_merchant_id, order_type, oil_unit_price, "
                         + "oil_bucket_count, amount_total, discount_amount, amount_payable, status, agent_id, pay_type, del_flag) "
-                        + "VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, '0', ?, ?, '0')",
+                        + "VALUES (?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?, '0', ?, ?, '0')",
                 orderNo,
                 merchantId,
+                toMerchantIdRow,
                 String.valueOf(orderType),
                 unit,
                 buckets,
@@ -104,10 +127,11 @@ public class AppBizOrderService {
     public List<Map<String, Object>> listOrders(String openid) {
         OpenidBizScope scope = scopeService.resolve(openid);
         StringBuilder sql = new StringBuilder()
-                .append("SELECT o.order_no, m.merchant_name, o.order_type, o.status AS st, o.pay_type, ")
-                .append("o.amount_payable, o.order_time, o.work_order_no, o.oil_bucket_count ")
+                .append("SELECT o.order_no, m.merchant_name, tm.merchant_name AS to_merchant_name, o.order_type, o.status AS st, o.pay_type, ")
+                .append("o.amount_payable, o.order_time, o.work_order_no, o.oil_bucket_count, o.to_merchant_id ")
                 .append("FROM biz_env_order o ")
                 .append("JOIN biz_env_merchant m ON m.merchant_id = o.merchant_id AND m.del_flag = '0' ")
+                .append("LEFT JOIN biz_env_merchant tm ON tm.merchant_id = o.to_merchant_id AND tm.del_flag = '0' ")
                 .append("WHERE o.del_flag = '0' ");
         List<Object> args = new ArrayList<>();
         appendOrderScope(sql, args, scope);
@@ -125,6 +149,8 @@ public class AppBizOrderService {
             row.put("orderTypeCode", rs.getString("order_type"));
             row.put("createTime", formatTs(rs.getTimestamp("order_time")));
             row.put("workOrderNo", rs.getString("work_order_no"));
+            row.put("toMerchantId", rs.getObject("to_merchant_id") == null ? null : rs.getLong("to_merchant_id"));
+            row.put("toMerchantName", rs.getString("to_merchant_name"));
             return row;
         });
     }
@@ -442,6 +468,9 @@ public class AppBizOrderService {
         if ("2".equals(s) || "维护".equals(s)) {
             return '2';
         }
+        if ("4".equals(s) || "转移商家".equals(s)) {
+            return '4';
+        }
         throw new IllegalArgumentException("订单类型无效");
     }
 
@@ -465,6 +494,9 @@ public class AppBizOrderService {
         }
         if ("2".equals(code)) {
             return "维护";
+        }
+        if ("4".equals(code)) {
+            return "转移商家";
         }
         return code == null ? "" : code;
     }

@@ -101,17 +101,11 @@ public class AppDeviceEventService {
         String addModeTrim = null;
         if ("A".equals(req.getEventType())) {
             addModeTrim = req.getAddMode() == null ? "" : req.getAddMode().trim();
-            if (addModeTrim.isEmpty()) {
-                throw new IllegalArgumentException("新增设备请选择入库或商家新增");
+            if (!addModeTrim.isEmpty() && !"inbound".equals(addModeTrim)) {
+                throw new IllegalArgumentException("新增设备仅支持入库（inbound）");
             }
-            if (!"inbound".equals(addModeTrim) && !"merchant".equals(addModeTrim)) {
-                throw new IllegalArgumentException("新增方式须为 inbound（入库）或 merchant（商家新增）");
-            }
-            if ("inbound".equals(addModeTrim)) {
-                mid = null;
-            } else if (mid == null) {
-                throw new IllegalArgumentException("商家新增请选择商家");
-            }
+            addModeTrim = "inbound";
+            mid = null;
         }
 
         if (mid != null) {
@@ -143,36 +137,59 @@ public class AppDeviceEventService {
             if (dup != null && dup > 0) {
                 throw new IllegalArgumentException("设备编号已存在");
             }
-            String deviceStatus = "inbound".equals(addModeTrim) ? "0" : "1";
-            Long merchantForDevice = "inbound".equals(addModeTrim) ? null : mid;
             jdbc.update(
                     "INSERT INTO biz_env_device (device_type, merchant_id, agent_id, device_no, device_status, del_flag) "
-                            + "VALUES ('1',?,?,?,?,'0')",
-                    merchantForDevice,
+                            + "VALUES ('1',NULL,?,?,'0','0')",
                     agentId,
-                    no,
-                    deviceStatus);
+                    no);
 
-            if ("inbound".equals(addModeTrim)) {
-                String logRemark = buildDeviceLogRemark(req.getRemark(), "A", addModeTrim);
-                insertDeviceLog(agentId, null, no, "I", logRemark, req.getOpenid());
-            } else {
-                int priorInbound = countInboundLogs(no);
-                if (priorInbound == 0) {
-                    insertDeviceLog(agentId, null, no, "I", "【商家新增】补录入库", req.getOpenid());
-                }
-                String tRemark = buildDeviceLogRemark(req.getRemark(), "A", addModeTrim);
-                insertDeviceLog(agentId, mid, no, "T", tRemark, req.getOpenid());
-            }
+            String logRemark = buildDeviceLogRemark(req.getRemark(), "A", addModeTrim);
+            insertDeviceLog(agentId, null, no, "I", logRemark, req.getOpenid());
         }
     }
 
-    private int countInboundLogs(String deviceNo) {
-        Integer n = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM biz_env_device_event_log WHERE device_no = ? AND event_type = 'I' AND del_flag = '0'",
+    /**
+     * 转移商家订单完工：设备须在源门店、在店状态，更新为目标门店并记日志（事件 X）。
+     */
+    public void transferMerchantDevice(long agentId, String deviceNo, long fromMerchantId, Long toMerchantId, String operatorOpenid) {
+        if (toMerchantId == null) {
+            throw new IllegalArgumentException("订单缺少目标门店");
+        }
+        if (fromMerchantId == toMerchantId) {
+            throw new IllegalArgumentException("源门店与目标门店不能相同");
+        }
+        String no = deviceNo == null ? "" : deviceNo.trim();
+        if (no.isEmpty()) {
+            throw new IllegalArgumentException("设备编号不能为空");
+        }
+        Integer okFrom = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM biz_env_merchant WHERE merchant_id = ? AND agent_id = ? AND del_flag = '0'",
                 Integer.class,
-                deviceNo);
-        return n == null ? 0 : n;
+                fromMerchantId,
+                agentId);
+        if (okFrom == null || okFrom == 0) {
+            throw new IllegalArgumentException("源门店不属于该代理");
+        }
+        Integer okTo = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM biz_env_merchant WHERE merchant_id = ? AND agent_id = ? AND del_flag = '0'",
+                Integer.class,
+                toMerchantId,
+                agentId);
+        if (okTo == null || okTo == 0) {
+            throw new IllegalArgumentException("目标门店不属于该代理");
+        }
+        int u = jdbc.update(
+                "UPDATE biz_env_device SET merchant_id = ? WHERE device_no = ? AND agent_id = ? AND merchant_id = ? "
+                        + "AND device_status = '1' AND del_flag = '0'",
+                toMerchantId,
+                no,
+                agentId,
+                fromMerchantId);
+        if (u == 0) {
+            throw new IllegalArgumentException("设备不存在、不在源门店或非在店状态，无法完成转移");
+        }
+        String remark = String.format("【转移商家】门店#%d → #%d", fromMerchantId, toMerchantId);
+        insertDeviceLog(agentId, toMerchantId, no, "X", remark, operatorOpenid);
     }
 
     private void insertDeviceLog(long agentId, Long merchantId, String deviceNo, String eventType, String remark, String openid) {
@@ -210,10 +227,10 @@ public class AppDeviceEventService {
         Long dm = (Long) dev.get("merchantId");
         String st = (String) dev.get("deviceStatus");
         if (dm == null) {
-            throw new IllegalArgumentException("仅可登记已安装在商家的设备移除");
+            throw new IllegalArgumentException("设备未绑定门店，仅可登记移除已在店（已装机）的设备");
         }
         if (!"1".equals(st)) {
-            throw new IllegalArgumentException("仅「在商家」状态的设备可登记移除");
+            throw new IllegalArgumentException("仅「在店」状态的设备可登记移除");
         }
         String r = remark == null ? "" : remark.trim();
         insertDeviceLog(agentId, dm, deviceNo, "R", r.isEmpty() ? null : r, openid);
@@ -227,10 +244,10 @@ public class AppDeviceEventService {
         Long dm = (Long) dev.get("merchantId");
         String st = (String) dev.get("deviceStatus");
         if (dm != null) {
-            throw new IllegalArgumentException("仅对在库（未绑定商家）的设备可报废");
+            throw new IllegalArgumentException("仅对在库且未绑定门店的设备可报废");
         }
         if (!"0".equals(st)) {
-            throw new IllegalArgumentException("仅「在库」状态的设备可报废");
+            throw new IllegalArgumentException("仅「在库（可调拨）」状态的设备可报废");
         }
         long deviceId = ((Number) dev.get("deviceId")).longValue();
         int u = jdbc.update(
@@ -254,8 +271,6 @@ public class AppDeviceEventService {
         String prefix;
         if ("inbound".equals(addModeTrim)) {
             prefix = "【入库】";
-        } else if ("merchant".equals(addModeTrim)) {
-            prefix = "【转移至商家】";
         } else {
             return rr.isEmpty() ? null : rr;
         }
@@ -274,6 +289,9 @@ public class AppDeviceEventService {
         }
         if ("T".equals(code)) {
             return "转移至商家";
+        }
+        if ("X".equals(code)) {
+            return "转移商家";
         }
         if ("R".equals(code)) {
             return "移除";

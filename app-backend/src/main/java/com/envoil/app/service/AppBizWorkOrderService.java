@@ -30,27 +30,33 @@ public class AppBizWorkOrderService {
     private final AppBizStockService stockService;
     private final AppBizAccountService accountService;
     private final AppBizDataService bizDataService;
+    private final AppDeviceEventService deviceEventService;
 
     public AppBizWorkOrderService(
             JdbcTemplate jdbcTemplate,
             AppOpenidBizScopeService scopeService,
             @Lazy AppBizStockService stockService,
             AppBizAccountService accountService,
-            @Lazy AppBizDataService bizDataService) {
+            @Lazy AppBizDataService bizDataService,
+            @Lazy AppDeviceEventService deviceEventService) {
         this.jdbcTemplate = jdbcTemplate;
         this.scopeService = scopeService;
         this.stockService = stockService;
         this.accountService = accountService;
         this.bizDataService = bizDataService;
+        this.deviceEventService = deviceEventService;
     }
 
     public List<Map<String, Object>> listWorkOrders(String openid) {
         OpenidBizScope scope = scopeService.resolve(openid);
         StringBuilder sql = new StringBuilder()
                 .append("SELECT w.work_order_no, w.order_no, w.work_order_time, w.work_order_type, w.status, ")
-                .append("w.agent_id, w.merchant_id, w.receive_salesman_id, w.accept_deadline, m.merchant_name, rs.salesman_name AS receive_salesman_name ")
+                .append("w.agent_id, w.merchant_id, w.receive_salesman_id, w.accept_deadline, m.merchant_name, ")
+                .append("rs.salesman_name AS receive_salesman_name, ord.to_merchant_id, tm.merchant_name AS to_merchant_name ")
                 .append("FROM biz_env_work_order w ")
                 .append("JOIN biz_env_merchant m ON m.merchant_id = w.merchant_id AND m.del_flag = '0' ")
+                .append("LEFT JOIN biz_env_order ord ON ord.order_no = w.order_no AND ord.del_flag = '0' ")
+                .append("LEFT JOIN biz_env_merchant tm ON tm.merchant_id = ord.to_merchant_id AND tm.del_flag = '0' ")
                 .append("LEFT JOIN biz_env_salesman rs ON rs.salesman_id = w.receive_salesman_id AND rs.del_flag = '0' ")
                 .append("WHERE w.del_flag = '0' ");
         List<Object> args = new ArrayList<>();
@@ -61,6 +67,7 @@ public class AppBizWorkOrderService {
             row.put("workOrderNo", rs.getString("work_order_no"));
             row.put("orderNo", rs.getString("order_no"));
             row.put("merchantName", rs.getString("merchant_name"));
+            row.put("workOrderTypeCode", rs.getString("work_order_type"));
             row.put("workOrderType", labelWorkType(rs.getString("work_order_type")));
             row.put("status", labelWorkStatus(rs.getString("status")));
             row.put("statusCode", rs.getString("status"));
@@ -73,6 +80,8 @@ public class AppBizWorkOrderService {
             boolean expired = adl != null && now > adl.getTime();
             row.put("grabExpired", expired);
             row.put("canForceAssign", expired);
+            row.put("toMerchantId", rs.getObject("to_merchant_id") == null ? null : rs.getLong("to_merchant_id"));
+            row.put("toMerchantName", rs.getString("to_merchant_name"));
             return row;
         });
     }
@@ -208,11 +217,27 @@ public class AppBizWorkOrderService {
         }
         long agentIdWo = ((Number) wo.get("agent_id")).longValue();
         List<AccessoryConsumeLine> consumeLines = req == null ? null : req.getAccessoryConsumes();
+        String orderNoEarly = (String) wo.get("order_no");
+        String orderTypeEarly = null;
+        if (orderNoEarly != null && !orderNoEarly.isEmpty()) {
+            Map<String, Object> ordEarly = loadOrderForSettlement(orderNoEarly);
+            if (ordEarly != null) {
+                orderTypeEarly = String.valueOf(ordEarly.get("order_type"));
+            }
+        }
         if (r == '3') {
-            if (consumeLines == null) {
+            if ("4".equals(orderTypeEarly)) {
+                String dn0 = req == null || req.getDeviceNo() == null ? "" : req.getDeviceNo().trim();
+                if (dn0.isEmpty()) {
+                    throw new IllegalArgumentException("转移商家工单完工请填写设备编号");
+                }
+            } else if (consumeLines == null) {
                 throw new IllegalArgumentException("结单请提交 JSON，例如 {\"accessoryConsumes\":[]} 或 [{\"typeId\":1,\"qty\":2}]");
             }
-            bizDataService.consumeAccessoriesForWorkOrder(agentIdWo, workOrderNo, '3', scope.getSalesmanId(), consumeLines);
+        }
+        if (r == '3') {
+            List<AccessoryConsumeLine> lines = consumeLines == null ? new ArrayList<>() : consumeLines;
+            bizDataService.consumeAccessoriesForWorkOrder(agentIdWo, workOrderNo, '3', scope.getSalesmanId(), lines);
         } else if (consumeLines != null && !consumeLines.isEmpty()) {
             bizDataService.consumeAccessoriesForWorkOrder(agentIdWo, workOrderNo, '2', null, consumeLines);
         }
@@ -231,10 +256,19 @@ public class AppBizWorkOrderService {
             BigDecimal pay = ord.get("amount_payable") == null
                     ? BigDecimal.ZERO
                     : ((BigDecimal) ord.get("amount_payable")).setScale(2, RoundingMode.HALF_UP);
+            String payType = ord.get("pay_type") == null ? "" : String.valueOf(ord.get("pay_type")).trim();
             if ("1".equals(ot)) {
                 stockService.finalizeOilDeduction(agId, orderNo, buckets);
             }
-            accountService.recordOrderCompleted(agId, merId, orderNo, pay);
+            if ("4".equals(ot)) {
+                String dn = req == null || req.getDeviceNo() == null ? "" : req.getDeviceNo().trim();
+                if (dn.isEmpty()) {
+                    throw new IllegalArgumentException("转移商家完工须填写设备编号");
+                }
+                Long toMid = ord.get("to_merchant_id") == null ? null : ((Number) ord.get("to_merchant_id")).longValue();
+                deviceEventService.transferMerchantDevice(agId, dn, merId, toMid, openid);
+            }
+            accountService.recordOrderCompleted(agId, merId, orderNo, pay, payType);
             int ou = jdbcTemplate.update(
                     "UPDATE biz_env_order SET status = '3', finish_time = CURRENT_TIMESTAMP WHERE order_no = ? AND del_flag = '0' AND status = '2'",
                     orderNo);
@@ -253,7 +287,8 @@ public class AppBizWorkOrderService {
 
     private Map<String, Object> loadOrderForSettlement(String orderNo) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT agent_id, merchant_id, order_type, oil_bucket_count, amount_payable FROM biz_env_order WHERE order_no = ? AND del_flag = '0'",
+                "SELECT agent_id, merchant_id, order_type, oil_bucket_count, amount_payable, to_merchant_id, pay_type "
+                        + "FROM biz_env_order WHERE order_no = ? AND del_flag = '0'",
                 orderNo);
         return rows.isEmpty() ? null : rows.get(0);
     }
@@ -347,6 +382,9 @@ public class AppBizWorkOrderService {
         }
         if ("3".equals(code)) {
             return "外出访问";
+        }
+        if ("4".equals(code)) {
+            return "转移商家";
         }
         return code == null ? "" : code;
     }

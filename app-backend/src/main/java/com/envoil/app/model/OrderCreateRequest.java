@@ -12,6 +12,9 @@ public class OrderCreateRequest {
     /** 非商家角色下单时必填；商家端由服务端绑定当前门店，可省略 */
     private Long merchantId;
 
+    /** 转移商家订单（orderType=4）：目标门店，须与 merchantId（源门店）同属代理且不相同 */
+    private Long toMerchantId;
+
     @NotBlank(message = "订单类型不能为空")
     private String orderType;
 
@@ -39,6 +42,14 @@ public class OrderCreateRequest {
 
     public void setMerchantId(Long merchantId) {
         this.merchantId = merchantId;
+    }
+
+    public Long getToMerchantId() {
+        return toMerchantId;
+    }
+
+    public void setToMerchantId(Long toMerchantId) {
+        this.toMerchantId = toMerchantId;
     }
 
     public String getOrderType() {
