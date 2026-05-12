@@ -97,17 +97,19 @@ onMounted(load);
       <h3 class="pf-panel-title">记录</h3>
       <button type="button" class="pf-refresh" @click="load">刷新</button>
       <div v-if="!rows.length" class="pf-muted">暂无数据</div>
-      <div v-for="(r, i) in rows" :key="i" class="pf-item">
-        <div class="wd-head">
-          <span class="pf-line-strong">#{{ r.withdrawId }} · ¥{{ r.amount }}</span>
-          <span :class="auditLikeStatusPillClass(r.statusCode)">{{ r.status }}</span>
-        </div>
-        <div class="pf-line-muted">{{ r.createTime }} · 申请人 {{ r.applicantOpenid || "—" }}</div>
-        <div v-if="r.auditRemark" class="pf-line-muted">{{ r.auditRemark }}</div>
-        <div v-if="canAudit && r.statusCode === '0'" class="pf-mini-actions">
-          <button type="button" class="pf-mini ok" @click="approve(r.withdrawId)">通过</button>
-          <button type="button" class="pf-mini bad" @click="reject(r.withdrawId)">驳回</button>
-        </div>
+      <div v-else class="dc-stack">
+        <article v-for="(r, i) in rows" :key="i" class="dc-card dc-card--white">
+          <div class="wd-head">
+            <span class="pf-line-strong">#{{ r.withdrawId }} · ¥{{ r.amount }}</span>
+            <span :class="auditLikeStatusPillClass(r.statusCode)">{{ r.status }}</span>
+          </div>
+          <div class="pf-line-muted">{{ r.createTime }} · 申请人 {{ r.applicantOpenid || "—" }}</div>
+          <div v-if="r.auditRemark" class="pf-line-muted">{{ r.auditRemark }}</div>
+          <div v-if="canAudit && r.statusCode === '0'" class="pf-mini-actions">
+            <button type="button" class="pf-mini ok" @click="approve(r.withdrawId)">通过</button>
+            <button type="button" class="pf-mini bad" @click="reject(r.withdrawId)">驳回</button>
+          </div>
+        </article>
       </div>
     </div>
   </div>

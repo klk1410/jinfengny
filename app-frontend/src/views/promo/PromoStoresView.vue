@@ -48,21 +48,23 @@ onMounted(load);
 
     <div class="pf-card">
       <div v-if="!rows.length" class="pf-muted" style="padding: 12px">暂无数据</div>
-      <button
-        v-for="(m, i) in rows"
-        :key="i"
-        type="button"
-        class="pf-item pf-item--link"
-        @click="router.push({ name: 'promo-store-detail', params: { merchantId: String(m.merchantId) } })"
-      >
-        <div class="store-head">
-          <span class="pf-line-strong">#{{ m.merchantId }} {{ m.merchantName }}</span>
-          <span :class="entityOnOffPillClass(m.statusCode)">{{ m.status }}</span>
-        </div>
-        <div class="pf-line-muted">{{ m.contactName }} {{ m.contactPhone }}</div>
-        <div class="pf-line-muted">{{ m.city }} · {{ m.agentName }} · {{ m.salesmanName || "—" }}</div>
-        <div class="pf-line-muted amt-line">单价 ¥{{ m.oilUnitPrice }} · 欠费 ¥{{ m.arrearsAmount }}</div>
-      </button>
+      <div v-else class="dc-stack">
+        <button
+          v-for="(m, i) in rows"
+          :key="i"
+          type="button"
+          class="dc-card dc-card--white pf-item--link"
+          @click="router.push({ name: 'promo-store-detail', params: { merchantId: String(m.merchantId) } })"
+        >
+          <div class="store-head">
+            <span class="pf-line-strong">#{{ m.merchantId }} {{ m.merchantName }}</span>
+            <span :class="entityOnOffPillClass(m.statusCode)">{{ m.status }}</span>
+          </div>
+          <div class="pf-line-muted">{{ m.contactName }} {{ m.contactPhone }}</div>
+          <div class="pf-line-muted">{{ m.city }} · {{ m.agentName }} · {{ m.salesmanName || "—" }}</div>
+          <div class="pf-line-muted amt-line">单价 ¥{{ m.oilUnitPrice }} · 欠费 ¥{{ m.arrearsAmount }}</div>
+        </button>
+      </div>
     </div>
   </div>
 </template>

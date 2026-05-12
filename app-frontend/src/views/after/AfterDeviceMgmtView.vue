@@ -147,16 +147,18 @@ onMounted(() => {
 
     <div class="pf-card">
       <div v-if="!rows.length" class="pf-muted" style="padding: 12px">暂无数据</div>
-      <div v-for="(d, i) in rows" :key="i" class="pf-item">
-        <div class="pf-line-strong">{{ d.deviceNo }}</div>
-        <div class="pf-line-muted device-meta-row">
-          <span>{{ d.deviceType }}</span>
-          <span :class="deviceStatusPillClass(d.deviceStatusCode)">{{ d.deviceStatus }}</span>
-        </div>
-        <div class="pf-line-muted">
-          门店 {{ d.merchantName || "—" }}{{ d.merchantId != null ? "（" + d.merchantId + "）" : "" }} · 代理
-          {{ d.agentName || "#" + d.agentId }}{{ d.agentId != null ? "（" + d.agentId + "）" : "" }}
-        </div>
+      <div v-else class="dc-stack">
+        <article v-for="(d, i) in rows" :key="i" class="dc-card dc-card--white">
+          <div class="pf-line-strong">{{ d.deviceNo }}</div>
+          <div class="pf-line-muted device-meta-row">
+            <span>{{ d.deviceType }}</span>
+            <span :class="deviceStatusPillClass(d.deviceStatusCode)">{{ d.deviceStatus }}</span>
+          </div>
+          <div class="pf-line-muted">
+            门店 {{ d.merchantName || "—" }}{{ d.merchantId != null ? "（" + d.merchantId + "）" : "" }} · 代理
+            {{ d.agentName || "#" + d.agentId }}{{ d.agentId != null ? "（" + d.agentId + "）" : "" }}
+          </div>
+        </article>
       </div>
     </div>
 

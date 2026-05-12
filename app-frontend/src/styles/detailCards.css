@@ -1,0 +1,33 @@
+/* 列表 / 详情统一卡片栈（配合页面 import main.js 全局生效） */
+.dc-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dc-card {
+  border-radius: 10px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  background: #fafbfc;
+  box-sizing: border-box;
+}
+
+.dc-card--white {
+  background: #fff;
+}
+
+button.dc-card {
+  display: block;
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  margin: 0;
+}
+
+button.dc-card:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}

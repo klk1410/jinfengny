@@ -39,6 +39,16 @@ public class OrderController {
         return ApiResponse.ok(appBizOrderService.orderStats(openid));
     }
 
+    /** 订单流程时间轴（主端/代理等与订单列表同范围） */
+    @GetMapping("/timeline/{orderNo}")
+    public ApiResponse<?> timeline(@PathVariable String orderNo, @RequestParam String openid) {
+        Map<String, Object> data = appBizOrderService.getOrderTimeline(openid, orderNo);
+        if (data == null) {
+            return ApiResponse.fail("未找到订单或无权限查看流程");
+        }
+        return ApiResponse.ok(data);
+    }
+
     @PostMapping("/confirm/{orderNo}")
     public ApiResponse<?> confirm(@PathVariable String orderNo, @RequestParam String openid) {
         Map<String, Object> data = appBizOrderService.confirmOrder(openid, orderNo);

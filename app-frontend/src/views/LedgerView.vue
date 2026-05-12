@@ -1,6 +1,7 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../api.js";
+import { prepaidDirectionPillClass } from "../utils/statusDisplay.js";
 
 const shell = inject("appShell");
 const rows = ref([]);
@@ -52,12 +53,15 @@ onMounted(load);
 
     <div class="card">
       <div v-if="!rows.length" class="muted">暂无</div>
-      <div v-for="(r, i) in rows" :key="i" class="item">
-        <div class="line">
-          <span class="strong">{{ r.amount }}</span>
-          · {{ r.direction }} · {{ r.title }}
-        </div>
-        <div class="line muted">{{ r.createTime }} · {{ r.refType }} {{ r.refNo || "" }}</div>
+      <div v-else class="dc-stack">
+        <article v-for="(r, i) in rows" :key="i" class="dc-card dc-card--white">
+          <div class="row-head">
+            <span class="strong">¥{{ r.amount }}</span>
+            <span :class="prepaidDirectionPillClass(r.directionCode)">{{ r.direction }}</span>
+          </div>
+          <div class="line">{{ r.title }}</div>
+          <div class="line muted">{{ r.createTime }} · {{ r.refType }} {{ r.refNo || "" }}</div>
+        </article>
       </div>
     </div>
     </template>
@@ -118,14 +122,12 @@ onMounted(load);
   color: #64748b;
   font-size: 12px;
 }
-.item {
-  border-top: 1px solid #eef1f6;
-  padding: 10px 0;
+.row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
   font-size: 12px;
-}
-.item:first-of-type {
-  border-top: none;
-  padding-top: 0;
 }
 .line {
   margin-top: 4px;

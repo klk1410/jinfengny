@@ -136,11 +136,11 @@ function formatPayload(p) {
       </div>
 
       <h3 class="pf-panel-title" style="margin: 14px 0 8px">修改内容</h3>
-      <div class="pf-card payload-card">
-        <div v-for="(line, i) in formatPayload(detail.payload)" :key="i" class="payload-row">
+      <div class="dc-stack">
+        <article v-for="(line, i) in formatPayload(detail.payload)" :key="i" class="dc-card dc-card--white payload-line">
           <div class="payload-k">{{ line.label }}</div>
           <div class="payload-v">{{ line.value }}</div>
-        </div>
+        </article>
       </div>
 
       <div v-if="canReview" class="pf-card" style="margin-top: 12px">
@@ -211,20 +211,12 @@ function formatPayload(p) {
 .sum-v--wrap {
   white-space: pre-wrap;
 }
-.payload-card {
-  padding: 4px 0 8px;
-}
-.payload-row {
+.payload-line {
   display: grid;
   grid-template-columns: 100px 1fr;
   gap: 12px;
-  padding: 10px 12px;
-  border-top: 1px solid #eef1f6;
   font-size: 13px;
   align-items: start;
-}
-.payload-row:first-child {
-  border-top: none;
 }
 .payload-k {
   color: #64748b;

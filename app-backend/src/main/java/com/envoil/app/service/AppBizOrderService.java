@@ -14,9 +14,13 @@ import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.springframework.jdbc.core.ResultSetExtractor;
 
 @Service
 public class AppBizOrderService {
@@ -27,14 +31,17 @@ public class AppBizOrderService {
     private final JdbcTemplate jdbcTemplate;
     private final AppOpenidBizScopeService scopeService;
     private final AppBizStockService stockService;
+    private final AppOrderProcessLogService orderProcessLogService;
 
     public AppBizOrderService(
             JdbcTemplate jdbcTemplate,
             AppOpenidBizScopeService scopeService,
-            @Lazy AppBizStockService stockService) {
+            @Lazy AppBizStockService stockService,
+            AppOrderProcessLogService orderProcessLogService) {
         this.jdbcTemplate = jdbcTemplate;
         this.scopeService = scopeService;
         this.stockService = stockService;
+        this.orderProcessLogService = orderProcessLogService;
     }
 
     public Map<String, Object> createOrder(OrderCreateRequest request) {
@@ -120,6 +127,31 @@ public class AppBizOrderService {
                 amountPayable,
                 agentId,
                 String.valueOf(payType));
+
+        Long orderId = jdbcTemplate.queryForObject(
+                "SELECT order_id FROM biz_env_order WHERE order_no = ? AND del_flag = '0'",
+                Long.class,
+                orderNo);
+        String merchantName = jdbcTemplate.queryForObject(
+                "SELECT merchant_name FROM biz_env_merchant WHERE merchant_id = ? AND del_flag = '0'",
+                String.class,
+                merchantId);
+        char actorRole = scope.getUserRole();
+        Long actorRef = null;
+        if (actorRole == '4') {
+            actorRef = merchantId;
+        } else if (actorRole == '2') {
+            actorRef = scope.getAgentId();
+        } else if (actorRole == '3') {
+            actorRef = scope.getSalesmanId();
+        }
+        orderProcessLogService.append(
+                orderId,
+                orderNo,
+                "order_create",
+                "商家【" + merchantName + "】提交订单",
+                actorRole,
+                actorRef);
 
         return loadOrderMap(request.getOpenid(), orderNo);
     }
@@ -293,6 +325,27 @@ public class AppBizOrderService {
         if (n == 0) {
             throw new IllegalArgumentException("确认失败，订单状态已变更");
         }
+        String confirmTitle;
+        Long actorRef = null;
+        if (scope.getUserRole() == '1') {
+            confirmTitle = "主端确认订单，生成待分配工单";
+            actorRef = null;
+        } else {
+            String agentName = jdbcTemplate.queryForObject(
+                    "SELECT agent_name FROM biz_env_agent WHERE agent_id = ? AND del_flag = '0'",
+                    String.class,
+                    scope.getAgentId());
+            confirmTitle = "代理【" + agentName + "】确认订单，生成待分配工单";
+            actorRef = scope.getAgentId();
+        }
+        orderProcessLogService.append(
+                orderId,
+                orderNo,
+                "order_confirm",
+                confirmTitle,
+                scope.getUserRole(),
+                actorRef);
+
         return loadOrderMap(openid, orderNo);
     }
 
@@ -312,7 +365,7 @@ public class AppBizOrderService {
     public Map<String, Object> cancelOrder(String openid, String orderNo) {
         OpenidBizScope scope = scopeService.resolve(openid);
         Map<String, Object> row = jdbcTemplate.query(
-                "SELECT o.order_no, o.status, o.agent_id, o.merchant_id, m.salesman_id, o.receive_salesman_id, "
+                "SELECT o.order_id, o.order_no, o.status, o.agent_id, o.merchant_id, m.salesman_id, o.receive_salesman_id, "
                         + "o.order_type, o.oil_bucket_count "
                         + "FROM biz_env_order o "
                         + "JOIN biz_env_merchant m ON m.merchant_id = o.merchant_id AND m.del_flag = '0' "
@@ -322,6 +375,7 @@ public class AppBizOrderService {
                         return null;
                     }
                     Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("order_id", rs.getLong("order_id"));
                     m.put("order_no", rs.getString("order_no"));
                     m.put("status", rs.getString("status"));
                     m.put("agent_id", rs.getLong("agent_id"));
@@ -367,7 +421,150 @@ public class AppBizOrderService {
         if (n == 0) {
             return null;
         }
+        long orderId = ((Number) row.get("order_id")).longValue();
+        String cancelTitle;
+        Long actorRef = null;
+        if (ur == '4') {
+            cancelTitle = "商家发起取消，订单已关闭";
+            actorRef = scope.getMerchantId();
+        } else if (ur == '1') {
+            cancelTitle = "主端取消订单";
+        } else if (ur == '2') {
+            cancelTitle = "代理取消订单";
+            actorRef = scope.getAgentId();
+        } else {
+            cancelTitle = "订单已取消";
+        }
+        orderProcessLogService.append(orderId, orderNo, "order_cancel", cancelTitle, ur, actorRef);
+
         return loadOrderMap(openid, orderNo);
+    }
+
+    /**
+     * 订单流程时间轴（主端/代理等可见性与订单列表一致）。优先返回持久化日志；无日志时对历史单做推断。
+     */
+    public Map<String, Object> getOrderTimeline(String openid, String orderNo) {
+        Map<String, Object> orderRow = jdbcTemplate.query(
+                "SELECT o.order_id, o.order_no, o.agent_id, o.merchant_id, m.salesman_id, o.receive_salesman_id "
+                        + "FROM biz_env_order o "
+                        + "JOIN biz_env_merchant m ON m.merchant_id = o.merchant_id AND m.del_flag = '0' "
+                        + "WHERE o.order_no = ? AND o.del_flag = '0'",
+                new ResultSetExtractor<Map<String, Object>>() {
+                    @Override
+                    public Map<String, Object> extractData(java.sql.ResultSet rs) throws java.sql.SQLException {
+                        if (!rs.next()) {
+                            return null;
+                        }
+                        Map<String, Object> m = new LinkedHashMap<>();
+                        m.put("order_id", rs.getLong("order_id"));
+                        m.put("order_no", rs.getString("order_no"));
+                        m.put("agent_id", rs.getLong("agent_id"));
+                        m.put("merchant_id", rs.getLong("merchant_id"));
+                        m.put("salesman_id", rs.getObject("salesman_id") == null ? null : rs.getLong("salesman_id"));
+                        m.put("receive_salesman_id", rs.getObject("receive_salesman_id") == null ? null : rs.getLong("receive_salesman_id"));
+                        return m;
+                    }
+                },
+                orderNo);
+        if (orderRow == null) {
+            return null;
+        }
+        OpenidBizScope scope = scopeService.resolve(openid);
+        if (!canSeeOrder(scope, orderRow)) {
+            return null;
+        }
+
+        List<Map<String, Object>> logged = orderProcessLogService.listByOrderNo(orderNo);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("orderNo", orderNo);
+        if (!logged.isEmpty()) {
+            out.put("source", "log");
+            out.put(
+                    "steps",
+                    logged.stream()
+                            .map(r -> {
+                                Map<String, Object> step = new LinkedHashMap<>();
+                                step.put("eventCode", r.get("eventCode"));
+                                step.put("title", r.get("title"));
+                                step.put("operationTime", r.get("operationTime"));
+                                return step;
+                            })
+                            .collect(Collectors.toList()));
+            return out;
+        }
+
+        List<Map<String, Object>> inferred = buildInferredTimeline(orderNo);
+        out.put("source", "inferred");
+        out.put("steps", inferred);
+        return out;
+    }
+
+    private List<Map<String, Object>> buildInferredTimeline(String orderNo) {
+        List<Map<String, Object>> steps = new ArrayList<>();
+        jdbcTemplate.query(
+                "SELECT o.order_time, o.status AS ost, o.finish_time, o.cancel_time, m.merchant_name, "
+                        + "w.work_order_time, w.work_start_time, w.assign_type, w.receive_salesman_id, "
+                        + "COALESCE(sm.salesman_name, '') AS recv_name "
+                        + "FROM biz_env_order o "
+                        + "JOIN biz_env_merchant m ON m.merchant_id = o.merchant_id AND m.del_flag = '0' "
+                        + "LEFT JOIN biz_env_work_order w ON w.order_no = o.order_no AND w.del_flag = '0' "
+                        + "LEFT JOIN biz_env_salesman sm ON sm.salesman_id = w.receive_salesman_id AND sm.del_flag = '0' "
+                        + "WHERE o.order_no = ? AND o.del_flag = '0'",
+                new ResultSetExtractor<Void>() {
+                    @Override
+                    public Void extractData(java.sql.ResultSet rs) throws java.sql.SQLException {
+                        if (!rs.next()) {
+                            return null;
+                        }
+                        addTimelineStep(
+                                steps,
+                                "order_create",
+                                "商家【" + rs.getString("merchant_name") + "】提交订单（历史推断）",
+                                rs.getTimestamp("order_time"));
+                        String ost = rs.getString("ost");
+                        Timestamp wot = rs.getTimestamp("work_order_time");
+                        if (wot != null && ost != null && !"0".equals(ost)) {
+                            addTimelineStep(
+                                    steps,
+                                    "order_confirm",
+                                    "订单已确认并生成工单（历史推断）",
+                                    wot);
+                        }
+                        Long recvId = rs.getObject("receive_salesman_id") == null ? null : rs.getLong("receive_salesman_id");
+                        Timestamp wst = rs.getTimestamp("work_start_time");
+                        String recvName = rs.getString("recv_name");
+                        String assignType = rs.getString("assign_type");
+                        if (recvId != null && wst != null && recvName != null && !recvName.isEmpty()) {
+                            String t = "2".equals(assignType)
+                                    ? "业务员【" + recvName + "】经指派接单（历史推断）"
+                                    : "业务员【" + recvName + "】抢单成功（历史推断）";
+                            addTimelineStep(steps, "work_receive", t, wst);
+                        }
+                        Timestamp ft = rs.getTimestamp("finish_time");
+                        if ("3".equals(ost) && ft != null) {
+                            addTimelineStep(steps, "work_finish", "订单已完成（历史推断）", ft);
+                        }
+                        Timestamp ct = rs.getTimestamp("cancel_time");
+                        if ("4".equals(ost) && ct != null) {
+                            addTimelineStep(steps, "order_cancel", "订单已取消（历史推断）", ct);
+                        }
+                        return null;
+                    }
+                },
+                orderNo);
+        steps.sort(Comparator.comparing(m -> String.valueOf(m.get("operationTime"))));
+        return steps;
+    }
+
+    private static void addTimelineStep(List<Map<String, Object>> steps, String code, String title, Timestamp ts) {
+        if (ts == null) {
+            return;
+        }
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("eventCode", code);
+        m.put("title", title);
+        m.put("operationTime", formatTs(ts));
+        steps.add(m);
     }
 
     private Map<String, Object> loadOrderMap(String openid, String orderNo) {

@@ -29,16 +29,18 @@ onMounted(load);
     <p v-if="err" class="err">{{ err }}</p>
     <div class="card">
       <div v-if="!rows.length" class="muted">暂无数据</div>
-      <div v-for="(d, i) in rows" :key="i" class="item">
-        <div class="line strong">{{ d.deviceNo }}</div>
-        <div class="line meta-row">
-          <span>{{ d.deviceType }}</span>
-          <span :class="deviceStatusPillClass(d.deviceStatusCode)">{{ d.deviceStatus }}</span>
-        </div>
-        <div class="line muted">
-          门店 {{ d.merchantName || "—" }}{{ d.merchantId != null ? "（" + d.merchantId + "）" : "" }} · 代理
-          {{ d.agentName ? d.agentName + "（" + d.agentId + "）" : "#" + d.agentId }}
-        </div>
+      <div v-else class="dc-stack">
+        <article v-for="(d, i) in rows" :key="i" class="dc-card dc-card--white">
+          <div class="line strong">{{ d.deviceNo }}</div>
+          <div class="line meta-row">
+            <span>{{ d.deviceType }}</span>
+            <span :class="deviceStatusPillClass(d.deviceStatusCode)">{{ d.deviceStatus }}</span>
+          </div>
+          <div class="line muted">
+            门店 {{ d.merchantName || "—" }}{{ d.merchantId != null ? "（" + d.merchantId + "）" : "" }} · 代理
+            {{ d.agentName ? d.agentName + "（" + d.agentId + "）" : "#" + d.agentId }}
+          </div>
+        </article>
       </div>
     </div>
   </div>
@@ -63,15 +65,6 @@ onMounted(load);
 .muted {
   color: #64748b;
   font-size: 12px;
-}
-.item {
-  border-top: 1px solid #eef1f6;
-  padding: 10px 0;
-  font-size: 12px;
-}
-.item:first-of-type {
-  border-top: none;
-  padding-top: 0;
 }
 .line {
   margin-top: 4px;

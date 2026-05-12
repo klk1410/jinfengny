@@ -52,13 +52,15 @@ onMounted(load);
     <button type="button" class="link-back" @click="back">← 返回汇总</button>
     <div class="card">
       <div v-if="!rows.length" class="muted">暂无该种类入库记录</div>
-      <div v-for="(r, i) in rows" :key="i" class="item">
-        <div class="line strong">数量 {{ r.qty }} · 入库成本 ¥{{ r.inboundCost }}</div>
-        <div v-if="r.accCode" class="line muted">编号 {{ r.accCode }}</div>
-        <div class="line muted">操作人 {{ r.operatorLabel || "—" }}</div>
-        <div class="line muted">门店 {{ r.merchantName || "代理级" }} · 代理 #{{ r.agentId }}</div>
-        <div v-if="r.remark" class="line muted">{{ r.remark }}</div>
-        <div class="line muted">{{ r.createTime }}</div>
+      <div v-else class="dc-stack">
+        <article v-for="(r, i) in rows" :key="i" class="dc-card dc-card--white">
+          <div class="line strong">数量 {{ r.qty }} · 入库成本 ¥{{ r.inboundCost }}</div>
+          <div v-if="r.accCode" class="line muted">编号 {{ r.accCode }}</div>
+          <div class="line muted">操作人 {{ r.operatorLabel || "—" }}</div>
+          <div class="line muted">门店 {{ r.merchantName || "代理级" }} · 代理 #{{ r.agentId }}</div>
+          <div v-if="r.remark" class="line muted">{{ r.remark }}</div>
+          <div class="line muted">{{ r.createTime }}</div>
+        </article>
       </div>
     </div>
   </div>
@@ -84,15 +86,6 @@ onMounted(load);
   padding: 12px;
   margin-top: 8px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
-}
-.item {
-  border-top: 1px solid #eef1f6;
-  padding: 10px 0;
-  font-size: 12px;
-}
-.item:first-of-type {
-  border-top: none;
-  padding-top: 0;
 }
 .line {
   margin-top: 4px;

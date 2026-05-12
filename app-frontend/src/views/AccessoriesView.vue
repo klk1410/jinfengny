@@ -151,10 +151,12 @@ onMounted(load);
       <h3 class="sub">按种类库存</h3>
       <p class="hint">点击查看该种类入库明细</p>
       <div v-if="!summary.length" class="muted">暂无数据</div>
-      <button v-for="(r, i) in summary" :key="i" type="button" class="sum-row" @click="openType(r)">
-        <span class="sum-name">{{ r.typeName }}</span>
-        <span class="sum-meta">数量 {{ r.qtyTotal }} · 成本 ¥{{ r.costTotal }} · {{ r.lineCount }} 笔</span>
-      </button>
+      <div v-else class="dc-stack">
+        <button v-for="(r, i) in summary" :key="i" type="button" class="dc-card dc-card--white sum-row" @click="openType(r)">
+          <span class="sum-name">{{ r.typeName }}</span>
+          <span class="sum-meta">数量 {{ r.qtyTotal }} · 成本 ¥{{ r.costTotal }} · {{ r.lineCount }} 笔</span>
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -218,18 +220,7 @@ onMounted(load);
   flex-direction: column;
   align-items: stretch;
   gap: 4px;
-  width: 100%;
-  text-align: left;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  border-radius: 8px;
-  padding: 10px 12px;
-  margin-bottom: 8px;
-  cursor: pointer;
   font-size: 13px;
-}
-.sum-row:last-child {
-  margin-bottom: 0;
 }
 .sum-name {
   font-weight: 600;

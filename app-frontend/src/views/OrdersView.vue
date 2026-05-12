@@ -1,12 +1,14 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { requestJson } from "../api.js";
 import { orderWorkStatusPillClass } from "../utils/statusDisplay.js";
 
 const shell = inject("appShell");
+const router = useRouter();
 const roleCode = computed(() => shell.portal?.roleCode ?? "");
+const canOpenFlow = computed(() => roleCode.value === "main" || roleCode.value === "agent");
 const rows = ref([]);
-const stats = ref(null);
 const err = ref("");
 const busy = ref(false);
 
@@ -16,16 +18,10 @@ async function load() {
   try {
     const oid = shell.loginOpenid;
     const q = encodeURIComponent(oid);
-    const [listRes, statRes] = await Promise.all([
-      requestJson(`/app-api/order/list?openid=${q}`),
-      requestJson(`/app-api/order/stats?openid=${q}`)
-    ]);
-    rows.value = listRes;
-    stats.value = statRes;
+    rows.value = await requestJson(`/app-api/order/list?openid=${q}`);
   } catch (e) {
     err.value = e.message || String(e);
     rows.value = [];
-    stats.value = null;
   } finally {
     busy.value = false;
   }
@@ -77,6 +73,10 @@ function orderMidLine(o) {
   return `${name} · ${o.orderType || "—"} · ${pay}`;
 }
 
+function goFlow(orderNo) {
+  router.push({ name: "order-flow", params: { orderNo } });
+}
+
 function canCancelRow(o) {
   if (o.statusCode === "3" || o.statusCode === "4") {
     return false;
@@ -106,60 +106,42 @@ onMounted(() => {
     <p v-if="busy" class="muted">加载中…</p>
 
     <div class="card">
-      <h3 class="sub">订单统计</h3>
-      <div v-if="stats" class="stats-top">
-        <div class="kpi">角色：{{ stats.roleName }}</div>
-        <div class="kpi">订单数：{{ stats.orderCount }}</div>
-        <div class="kpi">金额：¥{{ stats.amountTotal }}</div>
-      </div>
-      <div v-if="stats?.byStatus?.length" class="stats-block">
-        <div class="stats-title">按状态</div>
-        <div v-for="(s, i) in stats.byStatus" :key="`st-${i}`" class="stats-row">
-          <span :class="orderWorkStatusPillClass(s.statusCode)">{{ s.status }}</span>
-          <span class="stats-val">{{ s.orderCount }} 单 · ¥{{ s.amountTotal }}</span>
-        </div>
-      </div>
-      <div v-if="stats?.byMerchant?.length" class="stats-block">
-        <div class="stats-title">按商户</div>
-        <div v-for="(m, i) in stats.byMerchant" :key="`m-${i}`" class="stats-row">
-          <span>{{ m.merchantName }}</span>
-          <span>{{ m.orderCount }} 单 · ¥{{ m.amountTotal }}</span>
-        </div>
-      </div>
-      <div v-if="stats?.byAgent?.length" class="stats-block">
-        <div class="stats-title">按代理</div>
-        <div v-for="(a, i) in stats.byAgent" :key="`a-${i}`" class="stats-row">
-          <span>代理 #{{ a.agentId }}</span>
-          <span>{{ a.orderCount }} 单 · ¥{{ a.amountTotal }}</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
       <h3 class="sub">订单列表</h3>
+      <p v-if="canOpenFlow" class="hint-flow">点击卡片查看下单流程时间轴</p>
       <div v-if="!rows.length" class="muted">暂无数据</div>
-      <div v-for="(o, i) in rows" :key="i" class="item">
-        <div class="item-top">
-          <span class="no">{{ o.orderNo }}</span>
-          <span :class="orderWorkStatusPillClass(o.statusCode)">{{ o.status }}</span>
-        </div>
-        <div class="item-mid">{{ orderMidLine(o) }}</div>
-        <div v-if="o.workOrderNo" class="item-mid muted">工单 {{ o.workOrderNo }}</div>
-        <div class="item-bot">
-          <span>¥{{ o.amountPayable }}</span>
-          <span class="muted">{{ o.createTime }}</span>
-        </div>
-        <div class="item-actions">
-          <button
-            v-if="(roleCode === 'main' || roleCode === 'agent') && o.statusCode === '0'"
-            type="button"
-            class="link"
-            @click="onConfirm(o.orderNo)"
-          >
-            确认
-          </button>
-          <button v-if="canCancelRow(o)" type="button" class="link danger" @click="onCancel(o.orderNo)">取消</button>
-        </div>
+      <div v-else class="order-list">
+        <article
+          v-for="(o, i) in rows"
+          :key="i"
+          class="order-card"
+          :class="[
+            'order-card--' + (o.statusCode || 'x'),
+            { 'order-card--click': canOpenFlow }
+          ]"
+          @click="canOpenFlow && goFlow(o.orderNo)"
+        >
+          <div class="order-card__head">
+            <span class="no">{{ o.orderNo }}</span>
+            <span :class="orderWorkStatusPillClass(o.statusCode)">{{ o.status }}</span>
+          </div>
+          <div class="order-card__mid">{{ orderMidLine(o) }}</div>
+          <div v-if="o.workOrderNo" class="order-card__wo muted">工单 {{ o.workOrderNo }}</div>
+          <div class="order-card__bot">
+            <span class="amt">¥{{ o.amountPayable }}</span>
+            <span class="muted">{{ o.createTime }}</span>
+          </div>
+          <div class="order-card__actions" @click.stop>
+            <button
+              v-if="(roleCode === 'main' || roleCode === 'agent') && o.statusCode === '0'"
+              type="button"
+              class="link"
+              @click="onConfirm(o.orderNo)"
+            >
+              确认
+            </button>
+            <button v-if="canCancelRow(o)" type="button" class="link danger" @click="onCancel(o.orderNo)">取消</button>
+          </div>
+        </article>
       </div>
     </div>
   </div>
@@ -190,68 +172,84 @@ onMounted(() => {
   margin: 0 0 10px;
   font-size: 14px;
 }
-.item {
-  border-top: 1px solid #eef1f6;
-  padding: 10px 0;
+.hint-flow {
+  font-size: 11px;
+  color: #64748b;
+  margin: -4px 0 10px;
+}
+.order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.order-card {
+  border-radius: 10px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-left-width: 4px;
+  background: #fafbfc;
   font-size: 12px;
 }
-.item:first-of-type {
-  border-top: none;
-  padding-top: 0;
+.order-card--0 {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
 }
-.item-top {
+.order-card--1 {
+  border-left-color: #3b82f6;
+  background: #eff6ff;
+}
+.order-card--2 {
+  border-left-color: #06b6d4;
+  background: #ecfeff;
+}
+.order-card--3 {
+  border-left-color: #059669;
+  background: #f0fdf4;
+}
+.order-card--4 {
+  border-left-color: #dc2626;
+  background: #fef2f2;
+}
+.order-card--x {
+  border-left-color: #94a3b8;
+}
+.order-card--click {
+  cursor: pointer;
+}
+.order-card__head {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
   font-weight: 600;
 }
-.item-mid,
-.item-bot {
-  margin-top: 4px;
+.no {
+  min-width: 0;
+  word-break: break-all;
+}
+.order-card__mid {
+  margin-top: 8px;
   color: #334155;
+  line-height: 1.45;
 }
-.item-bot {
-  display: flex;
-  justify-content: space-between;
-}
-.item-actions {
+.order-card__wo {
   margin-top: 6px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
 }
-.stats-top {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-.kpi {
-  background: #f5f8ff;
-  border: 1px solid #dbe7ff;
-  border-radius: 8px;
-  padding: 8px;
-  font-size: 12px;
-  color: #1e3a8a;
-}
-.stats-block {
-  margin-top: 10px;
-}
-.stats-title {
-  font-size: 12px;
-  color: #64748b;
-  margin-bottom: 6px;
-}
-.stats-row {
+.order-card__bot {
+  margin-top: 8px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
-  padding: 6px 0;
-  border-top: 1px dashed #eef1f6;
-  font-size: 12px;
 }
-.stats-val {
-  text-align: right;
-  color: #334155;
+.order-card__bot .amt {
+  font-weight: 700;
+  color: #0f172a;
+}
+.order-card__actions {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 .link {
   border: none;

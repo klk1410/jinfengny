@@ -140,9 +140,11 @@ function flowQtyHint(code) {
     <div class="card">
       <h3 class="sub">当前库存</h3>
       <div v-if="!summary.length" class="muted">暂无</div>
-      <div v-for="(s, i) in summary" :key="i" class="item">
-        <div class="line strong">{{ s.agentName }}（#{{ s.agentId }}）</div>
-        <div class="line">在库 {{ s.qtyOnHand }} · 预扣 {{ s.qtyReserved }} · 可用 {{ s.qtyAvailable }}</div>
+      <div v-else class="dc-stack">
+        <article v-for="(s, i) in summary" :key="i" class="dc-card dc-card--white">
+          <div class="line strong">{{ s.agentName }}（#{{ s.agentId }}）</div>
+          <div class="line">在库 {{ s.qtyOnHand }} · 预扣 {{ s.qtyReserved }} · 可用 {{ s.qtyAvailable }}</div>
+        </article>
       </div>
     </div>
 
@@ -230,15 +232,6 @@ function flowQtyHint(code) {
 .muted {
   color: #64748b;
   font-size: 12px;
-}
-.item {
-  border-top: 1px solid #eef1f6;
-  padding: 10px 0;
-  font-size: 12px;
-}
-.item:first-of-type {
-  border-top: none;
-  padding-top: 0;
 }
 .line {
   margin-top: 4px;

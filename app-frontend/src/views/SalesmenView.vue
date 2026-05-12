@@ -33,12 +33,14 @@ onMounted(load);
     <p v-if="err" class="err">{{ err }}</p>
     <div class="card">
       <div v-if="!rows.length" class="muted">暂无数据</div>
-      <div v-for="(sm, i) in rows" :key="i" class="item">
-        <div class="row-head">
-          <span class="line strong">#{{ sm.salesmanId }} {{ sm.salesmanName }}</span>
-          <span :class="entityOnOffPillClass(sm.statusCode)">{{ sm.status }}</span>
-        </div>
-        <div class="line muted">{{ sm.phone }} · 代理 #{{ sm.agentId }}</div>
+      <div v-else class="dc-stack">
+        <article v-for="(sm, i) in rows" :key="i" class="dc-card dc-card--white">
+          <div class="row-head">
+            <span class="line strong">#{{ sm.salesmanId }} {{ sm.salesmanName }}</span>
+            <span :class="entityOnOffPillClass(sm.statusCode)">{{ sm.status }}</span>
+          </div>
+          <div class="line muted">{{ sm.phone }} · 代理 #{{ sm.agentId }}</div>
+        </article>
       </div>
     </div>
   </div>
@@ -74,15 +76,6 @@ onMounted(load);
 .muted {
   color: #64748b;
   font-size: 12px;
-}
-.item {
-  border-top: 1px solid #eef1f6;
-  padding: 10px 0;
-  font-size: 12px;
-}
-.item:first-of-type {
-  border-top: none;
-  padding-top: 0;
 }
 .line {
   margin-top: 4px;

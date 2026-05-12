@@ -88,76 +88,82 @@ onMounted(load);
 
     <div class="pf-panel" style="margin-top: 0">
       <h3 class="pf-panel-title">基础信息卡</h3>
-      <div class="pf-item">
-        <div class="pf-line-strong">当前角色</div>
-        <div class="pf-line-muted">{{ base.roleName || "—" }}</div>
-      </div>
-      <div class="pf-item">
-        <div class="pf-line-strong">openid</div>
-        <div class="pf-line-muted" style="word-break: break-all">{{ base.openid || "—" }}</div>
-        <button type="button" class="pf-tool pf-tool--ghost" style="margin-top: 8px" @click="copyOpenid">复制</button>
-      </div>
-      <div class="pf-item">
-        <div class="pf-line-strong">绑定时间（可选）</div>
-        <div class="pf-line-muted">{{ base.bindTime || "—" }}</div>
+      <div class="dc-stack">
+        <article class="dc-card dc-card--white">
+          <div class="pf-line-strong">当前角色</div>
+          <div class="pf-line-muted">{{ base.roleName || "—" }}</div>
+        </article>
+        <article class="dc-card dc-card--white">
+          <div class="pf-line-strong">openid</div>
+          <div class="pf-line-muted" style="word-break: break-all">{{ base.openid || "—" }}</div>
+          <button type="button" class="pf-tool pf-tool--ghost" style="margin-top: 8px" @click="copyOpenid">复制</button>
+        </article>
+        <article class="dc-card dc-card--white">
+          <div class="pf-line-strong">绑定时间（可选）</div>
+          <div class="pf-line-muted">{{ base.bindTime || "—" }}</div>
+        </article>
       </div>
     </div>
 
     <div class="pf-panel">
       <h3 class="pf-panel-title">组织信息卡</h3>
 
-      <template v-if="base.roleName === '代理'">
-        <div class="pf-item"><div class="pf-line-strong">代理名称</div><div class="pf-line-muted">{{ org.agentName || "—" }}</div></div>
-        <div class="pf-item"><div class="pf-line-strong">联系人</div><div class="pf-line-muted">{{ org.contactName || "—" }}</div></div>
-        <div class="pf-item"><div class="pf-line-strong">电话</div><div class="pf-line-muted">{{ org.contactPhone || "—" }}</div></div>
-        <div class="pf-item"><div class="pf-line-strong">区域</div><div class="pf-line-muted">{{ org.region || "—" }}</div></div>
-      </template>
+      <div v-if="base.roleName === '代理'" class="dc-stack">
+        <article class="dc-card dc-card--white"><div class="pf-line-strong">代理名称</div><div class="pf-line-muted">{{ org.agentName || "—" }}</div></article>
+        <article class="dc-card dc-card--white"><div class="pf-line-strong">联系人</div><div class="pf-line-muted">{{ org.contactName || "—" }}</div></article>
+        <article class="dc-card dc-card--white"><div class="pf-line-strong">电话</div><div class="pf-line-muted">{{ org.contactPhone || "—" }}</div></article>
+        <article class="dc-card dc-card--white"><div class="pf-line-strong">区域</div><div class="pf-line-muted">{{ org.region || "—" }}</div></article>
+      </div>
 
-      <template v-else-if="base.roleName === '业务员'">
-        <div class="pf-item"><div class="pf-line-strong">姓名</div><div class="pf-line-muted">{{ org.salesmanName || "—" }}</div></div>
-        <div class="pf-item"><div class="pf-line-strong">电话</div><div class="pf-line-muted">{{ org.phone || "—" }}</div></div>
-        <div class="pf-item"><div class="pf-line-strong">所属代理</div><div class="pf-line-muted">{{ org.agentName || "—" }}</div></div>
-      </template>
+      <div v-else-if="base.roleName === '业务员'" class="dc-stack">
+        <article class="dc-card dc-card--white"><div class="pf-line-strong">姓名</div><div class="pf-line-muted">{{ org.salesmanName || "—" }}</div></article>
+        <article class="dc-card dc-card--white"><div class="pf-line-strong">电话</div><div class="pf-line-muted">{{ org.phone || "—" }}</div></article>
+        <article class="dc-card dc-card--white"><div class="pf-line-strong">所属代理</div><div class="pf-line-muted">{{ org.agentName || "—" }}</div></article>
+      </div>
 
-      <template v-else-if="base.roleName === '商家'">
-        <div class="pf-item"><div class="pf-line-strong">门店名</div><div class="pf-line-muted">{{ org.merchantName || "—" }}</div></div>
-        <div class="pf-item"><div class="pf-line-strong">联系人</div><div class="pf-line-muted">{{ org.contactName || "—" }}</div></div>
-        <div class="pf-item"><div class="pf-line-strong">电话</div><div class="pf-line-muted">{{ org.contactPhone || "—" }}</div></div>
-        <div class="pf-item"><div class="pf-line-strong">所属代理</div><div class="pf-line-muted">{{ org.agentName || "—" }}</div></div>
-        <div class="pf-item"><div class="pf-line-strong">所属业务员</div><div class="pf-line-muted">{{ org.salesmanName || "—" }}</div></div>
-      </template>
+      <div v-else-if="base.roleName === '商家'" class="dc-stack">
+        <article class="dc-card dc-card--white"><div class="pf-line-strong">门店名</div><div class="pf-line-muted">{{ org.merchantName || "—" }}</div></article>
+        <article class="dc-card dc-card--white"><div class="pf-line-strong">联系人</div><div class="pf-line-muted">{{ org.contactName || "—" }}</div></article>
+        <article class="dc-card dc-card--white"><div class="pf-line-strong">电话</div><div class="pf-line-muted">{{ org.contactPhone || "—" }}</div></article>
+        <article class="dc-card dc-card--white"><div class="pf-line-strong">所属代理</div><div class="pf-line-muted">{{ org.agentName || "—" }}</div></article>
+        <article class="dc-card dc-card--white"><div class="pf-line-strong">所属业务员</div><div class="pf-line-muted">{{ org.salesmanName || "—" }}</div></article>
+      </div>
 
-      <template v-else>
-        <div class="pf-item"><div class="pf-line-strong">平台管理员信息</div><div class="pf-line-muted">{{ org.adminName || "平台管理员" }}</div></div>
-        <div class="pf-item"><div class="pf-line-strong">平台名称</div><div class="pf-line-muted">{{ org.platformName || "环保油平台" }}</div></div>
-      </template>
+      <div v-else class="dc-stack">
+        <article class="dc-card dc-card--white"><div class="pf-line-strong">平台管理员信息</div><div class="pf-line-muted">{{ org.adminName || "平台管理员" }}</div></article>
+        <article class="dc-card dc-card--white"><div class="pf-line-strong">平台名称</div><div class="pf-line-muted">{{ org.platformName || "环保油平台" }}</div></article>
+      </div>
     </div>
 
     <div class="pf-panel">
       <h3 class="pf-panel-title">共享账号</h3>
-      <div class="pf-item">
-        <div class="pf-line-strong">新增共享 openid</div>
-        <div class="pf-line-muted" style="display: flex; gap: 8px; margin-top: 8px">
-          <input
-            v-model="sharedOpenid"
-            type="text"
-            placeholder="请输入对方 openid"
-            style="flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #d0d7e2"
-          />
-          <button type="button" class="pf-tool" @click="addShare">添加</button>
-        </div>
-      </div>
-      <div class="pf-item">
-        <div class="pf-line-strong">已共享账号</div>
-        <div v-if="!shares.length" class="pf-line-muted">暂无</div>
-        <div v-for="s in shares" :key="s.shareId" class="pf-line-muted" style="margin-top: 8px">
-          <div style="display: flex; justify-content: space-between; gap: 8px; align-items: center">
-            <div style="word-break: break-all">
-              {{ s.sharedOpenid }} · {{ s.roleName }} · {{ s.createTime }}
-            </div>
-            <button type="button" class="pf-tool pf-tool--ghost" @click="removeShare(s.sharedOpenid)">移除</button>
+      <div class="dc-stack">
+        <article class="dc-card dc-card--white">
+          <div class="pf-line-strong">新增共享 openid</div>
+          <div class="pf-line-muted" style="display: flex; gap: 8px; margin-top: 8px">
+            <input
+              v-model="sharedOpenid"
+              type="text"
+              placeholder="请输入对方 openid"
+              style="flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #d0d7e2"
+            />
+            <button type="button" class="pf-tool" @click="addShare">添加</button>
           </div>
-        </div>
+        </article>
+        <article class="dc-card dc-card--white">
+          <div class="pf-line-strong">已共享账号</div>
+          <div v-if="!shares.length" class="pf-line-muted">暂无</div>
+          <div v-else class="dc-stack" style="margin-top: 10px">
+            <article v-for="s in shares" :key="s.shareId" class="dc-card dc-card--white">
+              <div style="display: flex; justify-content: space-between; gap: 8px; align-items: center">
+                <div class="pf-line-muted" style="word-break: break-all; flex: 1; min-width: 0">
+                  {{ s.sharedOpenid }} · {{ s.roleName }} · {{ s.createTime }}
+                </div>
+                <button type="button" class="pf-tool pf-tool--ghost" @click="removeShare(s.sharedOpenid)">移除</button>
+              </div>
+            </article>
+          </div>
+        </article>
       </div>
     </div>
   </div>

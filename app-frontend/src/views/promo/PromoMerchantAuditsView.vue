@@ -38,21 +38,23 @@ onMounted(load);
 
     <div class="pf-card">
       <div v-if="!rows.length" class="pf-muted" style="padding: 12px">暂无审核单</div>
-      <button
-        v-for="r in rows"
-        :key="r.auditId"
-        type="button"
-        class="pf-item pf-item--link"
-        @click="router.push({ name: 'promo-merchant-audit-detail', params: { auditId: String(r.auditId) } })"
-      >
-        <div class="audit-head">
-          <span class="pf-line-strong">#{{ r.auditId }} 店铺 #{{ r.merchantId }} {{ r.merchantName }}</span>
-          <span :class="auditLikeStatusPillClass(r.statusCode)">{{ r.status }}</span>
-        </div>
-        <div class="pf-line-muted">{{ r.createTime }}</div>
-        <div v-if="r.submitterSalesmanName" class="pf-line-muted">业务员 {{ r.submitterSalesmanName }}</div>
-        <div v-if="r.submitRemark" class="pf-line-muted">说明 {{ r.submitRemark }}</div>
-      </button>
+      <div v-else class="dc-stack">
+        <button
+          v-for="r in rows"
+          :key="r.auditId"
+          type="button"
+          class="dc-card dc-card--white pf-item--link"
+          @click="router.push({ name: 'promo-merchant-audit-detail', params: { auditId: String(r.auditId) } })"
+        >
+          <div class="audit-head">
+            <span class="pf-line-strong">#{{ r.auditId }} 店铺 #{{ r.merchantId }} {{ r.merchantName }}</span>
+            <span :class="auditLikeStatusPillClass(r.statusCode)">{{ r.status }}</span>
+          </div>
+          <div class="pf-line-muted">{{ r.createTime }}</div>
+          <div v-if="r.submitterSalesmanName" class="pf-line-muted">业务员 {{ r.submitterSalesmanName }}</div>
+          <div v-if="r.submitRemark" class="pf-line-muted">说明 {{ r.submitRemark }}</div>
+        </button>
+      </div>
     </div>
   </div>
 </template>

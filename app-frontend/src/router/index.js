@@ -18,6 +18,12 @@ export const router = createRouter({
           component: () => import("../views/OrderSubmitView.vue")
         },
         { path: "order/stats", name: "order-stats", meta: { headerTitle: "订单统计" }, component: () => import("../views/OrderStatsView.vue") },
+        {
+          path: "order/:orderNo/flow",
+          name: "order-flow",
+          meta: { headerTitle: "订单流程" },
+          component: () => import("../views/OrderFlowDetailView.vue")
+        },
         { path: "merchants", name: "merchants", meta: { headerTitle: "商家" }, component: () => import("../views/MerchantsView.vue") },
         { path: "agents", name: "agents", meta: { headerTitle: "代理" }, component: () => import("../views/AgentsView.vue") },
         {

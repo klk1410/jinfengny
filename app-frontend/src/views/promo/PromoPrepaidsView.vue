@@ -149,15 +149,17 @@ onMounted(() => {
       <h3 class="pf-panel-title">流水列表</h3>
       <button type="button" class="pf-refresh" @click="load">刷新</button>
       <div v-if="!rows.length" class="pf-muted">暂无数据</div>
-      <div v-for="(r, i) in rows" :key="i" class="pf-item">
-        <div class="pp-head">
-          <span class="pf-line-strong">{{ r.title }} · ¥{{ r.amount }}</span>
-          <span :class="prepaidDirectionPillClass(r.directionCode)">{{ r.direction }}</span>
-        </div>
-        <div class="pf-line-muted">
-          {{ r.createTime }} · 代理 #{{ r.agentId }} · 门店 {{ r.merchantId ?? "—" }}
-        </div>
-        <div v-if="r.refNote" class="pf-line-muted">{{ r.refNote }}</div>
+      <div v-else class="dc-stack">
+        <article v-for="(r, i) in rows" :key="i" class="dc-card dc-card--white">
+          <div class="pp-head">
+            <span class="pf-line-strong">{{ r.title }} · ¥{{ r.amount }}</span>
+            <span :class="prepaidDirectionPillClass(r.directionCode)">{{ r.direction }}</span>
+          </div>
+          <div class="pf-line-muted">
+            {{ r.createTime }} · 代理 #{{ r.agentId }} · 门店 {{ r.merchantId ?? "—" }}
+          </div>
+          <div v-if="r.refNote" class="pf-line-muted">{{ r.refNote }}</div>
+        </article>
       </div>
     </div>
   </div>

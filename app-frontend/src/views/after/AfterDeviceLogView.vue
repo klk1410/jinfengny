@@ -44,11 +44,13 @@ onMounted(load);
 
     <div class="pf-card">
       <div v-if="!rows.length" class="pf-muted" style="padding: 12px">暂无记录</div>
-      <div v-for="(r, i) in rows" :key="i" class="pf-item">
-        <div class="pf-line-strong">{{ r.deviceNo }} · {{ r.eventType }}</div>
-        <div class="pf-line-muted">{{ r.createTime }} · 代理 #{{ r.agentId }}</div>
-        <div class="pf-line-muted">门店 {{ r.merchantName || r.merchantId || "—" }}</div>
-        <div v-if="r.remark" class="pf-line-muted">{{ r.remark }}</div>
+      <div v-else class="dc-stack">
+        <article v-for="(r, i) in rows" :key="i" class="dc-card dc-card--white">
+          <div class="pf-line-strong">{{ r.deviceNo }} · {{ r.eventType }}</div>
+          <div class="pf-line-muted">{{ r.createTime }} · 代理 #{{ r.agentId }}</div>
+          <div class="pf-line-muted">门店 {{ r.merchantName || r.merchantId || "—" }}</div>
+          <div v-if="r.remark" class="pf-line-muted">{{ r.remark }}</div>
+        </article>
       </div>
     </div>
   </div>

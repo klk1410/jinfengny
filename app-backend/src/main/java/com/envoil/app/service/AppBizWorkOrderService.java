@@ -31,6 +31,7 @@ public class AppBizWorkOrderService {
     private final AppBizAccountService accountService;
     private final AppBizDataService bizDataService;
     private final AppDeviceEventService deviceEventService;
+    private final AppOrderProcessLogService orderProcessLogService;
 
     public AppBizWorkOrderService(
             JdbcTemplate jdbcTemplate,
@@ -38,13 +39,15 @@ public class AppBizWorkOrderService {
             @Lazy AppBizStockService stockService,
             AppBizAccountService accountService,
             @Lazy AppBizDataService bizDataService,
-            @Lazy AppDeviceEventService deviceEventService) {
+            @Lazy AppDeviceEventService deviceEventService,
+            AppOrderProcessLogService orderProcessLogService) {
         this.jdbcTemplate = jdbcTemplate;
         this.scopeService = scopeService;
         this.stockService = stockService;
         this.accountService = accountService;
         this.bizDataService = bizDataService;
         this.deviceEventService = deviceEventService;
+        this.orderProcessLogService = orderProcessLogService;
     }
 
     public List<Map<String, Object>> listWorkOrders(String openid) {
@@ -130,6 +133,7 @@ public class AppBizWorkOrderService {
                     scope.getSalesmanId(),
                     orderNo);
         }
+        logGrabTimeline(orderNo, scope.getSalesmanId());
         return firstMap(openid, workOrderNo);
     }
 
@@ -173,7 +177,7 @@ public class AppBizWorkOrderService {
             throw new IllegalArgumentException("指派对象不是本代理业务员");
         }
         int n = jdbcTemplate.update(
-                "UPDATE biz_env_work_order SET receive_salesman_id = ?, status = '2', work_start_time = CURRENT_TIMESTAMP "
+                "UPDATE biz_env_work_order SET receive_salesman_id = ?, status = '2', work_start_time = CURRENT_TIMESTAMP, assign_type = '2' "
                         + "WHERE work_order_no = ? AND del_flag = '0' AND status IN ('0','1') AND receive_salesman_id IS NULL",
                 targetSalesmanId,
                 workOrderNo);
@@ -187,6 +191,7 @@ public class AppBizWorkOrderService {
                     targetSalesmanId,
                     orderNo);
         }
+        logAssignTimeline(scope, orderNo, targetSalesmanId);
         return firstMap(openid, workOrderNo);
     }
 
@@ -283,12 +288,83 @@ public class AppBizWorkOrderService {
         if (wu == 0) {
             throw new IllegalArgumentException("完工失败");
         }
+        if (orderNo != null && !orderNo.isEmpty() && recv != null) {
+            Map<String, Object> ordDone = loadOrderForSettlement(orderNo);
+            if (ordDone != null) {
+                long oid = ((Number) ordDone.get("order_id")).longValue();
+                String sn = jdbcTemplate.queryForObject(
+                        "SELECT salesman_name FROM biz_env_salesman WHERE salesman_id = ? AND del_flag = '0'",
+                        String.class,
+                        recv);
+                orderProcessLogService.append(
+                        oid,
+                        orderNo,
+                        "work_finish",
+                        "业务员【" + sn + "】完工，订单已完成",
+                        r,
+                        r == '3' ? scope.getSalesmanId() : recv);
+            }
+        }
         return firstMap(openid, workOrderNo);
+    }
+
+    private void logGrabTimeline(String orderNo, long salesmanId) {
+        if (orderNo == null || orderNo.isEmpty()) {
+            return;
+        }
+        Long orderId = jdbcTemplate.queryForObject(
+                "SELECT order_id FROM biz_env_order WHERE order_no = ? AND del_flag = '0'",
+                Long.class,
+                orderNo);
+        String sn = jdbcTemplate.queryForObject(
+                "SELECT salesman_name FROM biz_env_salesman WHERE salesman_id = ? AND del_flag = '0'",
+                String.class,
+                salesmanId);
+        orderProcessLogService.append(
+                orderId,
+                orderNo,
+                "work_grab",
+                "业务员【" + sn + "】抢单成功",
+                '3',
+                salesmanId);
+    }
+
+    private void logAssignTimeline(OpenidBizScope scope, String orderNo, long targetSalesmanId) {
+        if (orderNo == null || orderNo.isEmpty()) {
+            return;
+        }
+        Long orderId = jdbcTemplate.queryForObject(
+                "SELECT order_id FROM biz_env_order WHERE order_no = ? AND del_flag = '0'",
+                Long.class,
+                orderNo);
+        String targetName = jdbcTemplate.queryForObject(
+                "SELECT salesman_name FROM biz_env_salesman WHERE salesman_id = ? AND del_flag = '0'",
+                String.class,
+                targetSalesmanId);
+        String assignerLabel;
+        Long actorRef = null;
+        if (scope.getUserRole() == '1') {
+            assignerLabel = "主端";
+        } else {
+            String agentName = jdbcTemplate.queryForObject(
+                    "SELECT agent_name FROM biz_env_agent WHERE agent_id = ? AND del_flag = '0'",
+                    String.class,
+                    scope.getAgentId());
+            assignerLabel = "代理【" + agentName + "】";
+            actorRef = scope.getAgentId();
+        }
+        orderProcessLogService.append(
+                orderId,
+                orderNo,
+                "work_assign",
+                assignerLabel + "将工单指派给业务员【" + targetName + "】",
+                scope.getUserRole(),
+                actorRef);
     }
 
     private Map<String, Object> loadOrderForSettlement(String orderNo) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                "SELECT agent_id, merchant_id, order_type, oil_bucket_count, amount_payable, to_merchant_id, pay_type "
+                "SELECT order_id, agent_id, merchant_id, order_type, oil_bucket_count, amount_payable, to_merchant_id, pay_type "
                         + "FROM biz_env_order WHERE order_no = ? AND del_flag = '0'",
                 orderNo);
         return rows.isEmpty() ? null : rows.get(0);
