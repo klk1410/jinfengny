@@ -474,9 +474,6 @@ public class AppBizWorkOrderService {
             args.add(scope.getAgentId());
             return;
         }
-        if (r == '5') {
-            return;
-        }
         sql.append(" AND 1 = 0");
     }
 

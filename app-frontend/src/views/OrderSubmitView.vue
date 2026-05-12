@@ -217,7 +217,7 @@ onMounted(loadMerchants);
       </p>
       <p v-if="form.orderType === '维护'" class="hint">维护单按系统规则计价（当前为 0 元展示）。</p>
       <p v-if="form.orderType === '转移商家'" class="hint">
-        确认订单并完工后，由业务员在工单结单时填写设备编号，系统将设备从源门店迁至目标门店。
+        确认订单并完工后，由运维在工单结单时填写设备编号，系统将设备从源门店迁至目标门店。
       </p>
     </div>
 

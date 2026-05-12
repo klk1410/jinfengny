@@ -351,7 +351,7 @@ onMounted(() => {
         </div>
 
         <div v-if="canDirectEdit" class="pf-row">
-          <div class="pf-label">业务员</div>
+          <div class="pf-label">运维</div>
           <div class="pf-field-wrap pf-field-wrap--select">
             <PfSelect v-model="salesmanId" :options="salesmanSelectOptions" placeholder="不指定" />
           </div>

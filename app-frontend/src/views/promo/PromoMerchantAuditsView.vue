@@ -90,10 +90,10 @@ watch(
     </div>
 
     <p v-if="auditTab === 'shop'" class="pf-muted intro">
-      店铺资料修改与新建店铺：主端查看全部；代理仅本代理；业务员仅本人发起的记录；商家仅本人提交的审核。
+      店铺资料修改与新建店铺：主端查看全部；代理仅本代理；运维仅本人发起的记录；商家仅本人提交的审核。
     </p>
     <p v-else class="pf-muted intro">
-      业务员提交的入库 / 移除 / 报废 / 调至门店等设备操作，仅主端与代理可在此审批（业务员仅能通过提交接口发起，不可查看此列表）。
+      运维提交的入库 / 移除 / 报废 / 调至门店等设备操作，仅主端与代理可在此审批（运维仅能通过提交接口发起，不可查看此列表）。
     </p>
 
     <div class="pf-toolbar">
@@ -121,7 +121,7 @@ watch(
             <span :class="auditLikeStatusPillClass(r.statusCode)">{{ r.status }}</span>
           </div>
           <div class="pf-line-muted">{{ r.createTime }}</div>
-          <div v-if="r.submitterSalesmanName" class="pf-line-muted">业务员 {{ r.submitterSalesmanName }}</div>
+          <div v-if="r.submitterSalesmanName" class="pf-line-muted">运维 {{ r.submitterSalesmanName }}</div>
           <div v-if="r.submitRemark" class="pf-line-muted">说明 {{ r.submitRemark }}</div>
         </button>
       </div>
@@ -142,7 +142,7 @@ watch(
             <span :class="auditLikeStatusPillClass(r.statusCode)">{{ r.status }}</span>
           </div>
           <div class="pf-line-muted">{{ r.createTime }}</div>
-          <div v-if="r.submitterSalesmanName" class="pf-line-muted">业务员 {{ r.submitterSalesmanName }}</div>
+          <div v-if="r.submitterSalesmanName" class="pf-line-muted">运维 {{ r.submitterSalesmanName }}</div>
         </button>
       </div>
     </div>

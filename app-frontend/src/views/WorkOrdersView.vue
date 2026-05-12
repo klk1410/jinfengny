@@ -110,7 +110,7 @@ function closeAssignDialog() {
 async function submitAssign() {
   const sid = Number(assignSalesmanId.value);
   if (!Number.isFinite(sid) || sid <= 0) {
-    err.value = "请选择业务员";
+    err.value = "请选择运维";
     return;
   }
   err.value = "";
@@ -161,7 +161,7 @@ async function openFinishDialog(w) {
   }
 }
 
-/** 业务员：非维护、非转移商家 → 直接结单，不扣配件 */
+/** 运维：非维护、非转移商家 → 直接结单，不扣配件 */
 async function finishSalesQuick(w) {
   err.value = "";
   if (!window.confirm("确认结单？（非维护工单不登记配件消耗）")) {
@@ -441,14 +441,14 @@ function openMerchantMap(w) {
 
     <div v-if="assignOpen" class="mask mask--assign" @click.self="closeAssignDialog">
       <div class="dialog">
-        <h3 class="dlg-title">指派业务员</h3>
+        <h3 class="dlg-title">指派运维</h3>
         <p v-if="assignRow" class="dlg-hint">
           工单 {{ assignRow.workOrderNo }} · {{ assignRow.merchantName }}
           <template v-if="roleCode === 'main' && assignRow.agentId != null"> · 代理 #{{ assignRow.agentId }}</template>
         </p>
         <p v-if="assignBusy" class="muted">加载中…</p>
         <template v-else>
-          <label class="dlg-lab" for="assign-sales-select">选择业务员</label>
+          <label class="dlg-lab" for="assign-sales-select">选择运维</label>
           <PfSelect
             id="assign-sales-select"
             v-model="assignSalesmanId"
@@ -456,7 +456,7 @@ function openMerchantMap(w) {
             :disabled="assignBusy || !assignSalesSelectOptions.length"
             placeholder="请选择"
           />
-          <p v-if="!assignSalesmenOptions.length" class="dlg-warn">暂无可指派的在职业务员，请先在业务员管理中维护。</p>
+          <p v-if="!assignSalesmenOptions.length" class="dlg-warn">暂无可指派的在职运维，请先在运维管理中维护。</p>
         </template>
         <div class="dlg-actions">
           <button type="button" class="btn-sm secondary" :disabled="assignBusy" @click="closeAssignDialog">取消</button>

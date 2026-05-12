@@ -32,32 +32,3 @@ SET stock_item_code = '1',
 WHERE stock_item_type = '1'
   AND del_flag = '0'
   AND (stock_item_code IS NULL OR TRIM(stock_item_code) = '');
-
-INSERT INTO env_mini_role (role_code, role_name, sort_order, status)
-SELECT 'ops', '运维', 55, '0'
-FROM (SELECT 1 AS _) z
-WHERE NOT EXISTS (SELECT 1 FROM env_mini_role WHERE role_code = 'ops');
-
-INSERT INTO env_mini_role_perm (role_id, perm_code)
-SELECT r.role_id, x.perm_code
-FROM env_mini_role r
-JOIN (
-  SELECT 'env:page:orders' AS perm_code UNION ALL SELECT 'env:page:order_submit' UNION ALL
-  SELECT 'env:page:workorders' UNION ALL SELECT 'env:page:stock' UNION ALL
-  SELECT 'env:page:order_stats'
-) x ON 1 = 1
-WHERE r.role_code = 'ops'
-  AND NOT EXISTS (
-    SELECT 1 FROM env_mini_role_perm p WHERE p.role_id = r.role_id AND p.perm_code = x.perm_code
-  );
-
-INSERT INTO env_mini_subject (openid, role_id)
-SELECT 'ops-openid-001', r.role_id
-FROM env_mini_role r
-WHERE r.role_code = 'ops'
-  AND NOT EXISTS (SELECT 1 FROM env_mini_subject WHERE openid = 'ops-openid-001');
-
-INSERT INTO env_openid_biz_scope (openid, user_role, agent_id, merchant_id, salesman_id)
-SELECT 'ops-openid-001', '5', NULL, NULL, NULL
-FROM (SELECT 1 AS _) z
-WHERE NOT EXISTS (SELECT 1 FROM env_openid_biz_scope WHERE openid = 'ops-openid-001');

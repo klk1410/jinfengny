@@ -235,7 +235,7 @@ onMounted(() => {
     <p v-if="err" class="pf-err">{{ err }}</p>
     <p class="pf-muted" style="margin: 0 0 8px">
       设备列表与操作。<strong>转移商家</strong>：将在库设备调至指定门店（装机）；登记移除仅<strong>在店且已绑定门店</strong>的设备；登记报废仅<strong>在库且未绑定门店</strong>的设备。门店之间的设备迁移（跨店）请使用订单类型「转移商家」工单。
-      <span v-if="roleCode === 'sales'">业务员提交的变更将进入<strong>设备操作审核</strong>，由代理确认后生效。</span>
+      <span v-if="roleCode === 'sales'">运维提交的变更将进入<strong>设备操作审核</strong>，由代理确认后生效。</span>
     </p>
     <div class="device-status-legend pf-muted" style="margin: 0 0 12px">
       <span style="margin-right: 6px">状态色标</span>

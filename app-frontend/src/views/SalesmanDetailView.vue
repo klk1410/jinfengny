@@ -30,7 +30,7 @@ async function load() {
     const oid = encodeURIComponent(shell.loginOpenid);
     const sid = salesmanId.value;
     if (!sid) {
-      throw new Error("业务员 ID 无效");
+      throw new Error("运维 ID 无效");
     }
     pack.value = await requestJson(`/app-api/biz/salesmen/portal-account?openid=${oid}&salesmanId=${sid}`);
   } catch (e) {
@@ -57,11 +57,11 @@ onMounted(load);
       <p v-if="err" class="pf-err">{{ err }}</p>
 
       <template v-if="!err && salesman">
-        <button type="button" class="link-back" @click="router.push({ name: 'salesmen' })">← 返回业务员列表</button>
+        <button type="button" class="link-back" @click="router.push({ name: 'salesmen' })">← 返回运维列表</button>
 
         <div class="dc-stack" style="margin-top: 8px">
           <article class="dc-card dc-card--white">
-            <div class="pf-line-strong">业务员档案</div>
+            <div class="pf-line-strong">运维档案</div>
             <div class="pf-line-muted" style="margin-top: 8px">
               #{{ salesman.salesmanId }} {{ salesman.salesmanName }}
               <span :class="entityOnOffPillClass(salesman.statusCode)" style="margin-left: 8px">{{ salesman.status }}</span>

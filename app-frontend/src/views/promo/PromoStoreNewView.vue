@@ -33,7 +33,7 @@ const salesmen = ref([]);
 
 const industrySelectOptions = computed(() => industryOptions.map((x) => ({ value: x, label: x })));
 const salesmanSelectOptions = computed(() => [
-  { value: "", label: "选择业务员" },
+  { value: "", label: "选择运维" },
   ...salesmen.value.map((s) => ({
     value: String(s.salesmanId),
     label: `${s.salesmanName} · ${s.phone || "—"}`
@@ -49,7 +49,7 @@ const oilTypeSelectOptions = computed(() =>
 
 const roleCode = computed(() => shell.roleCode ?? unref(shell.portal)?.roleCode ?? "");
 const isMain = computed(() => roleCode.value === "main");
-/** 业务员、商家新增店铺走审核，不直接落库 */
+/** 运维、商家新增店铺走审核，不直接落库 */
 const needsCreateAudit = computed(() => roleCode.value === "sales" || roleCode.value === "merchant");
 
 async function loadPickers() {
@@ -257,9 +257,9 @@ onMounted(() => {
       </div>
 
       <div class="pf-row">
-        <div class="pf-label">业务员</div>
+        <div class="pf-label">运维</div>
         <div class="pf-field-wrap pf-field-wrap--select">
-          <PfSelect v-model="salesmanId" :options="salesmanSelectOptions" placeholder="选择业务员" />
+          <PfSelect v-model="salesmanId" :options="salesmanSelectOptions" placeholder="选择运维" />
         </div>
       </div>
 

@@ -24,7 +24,7 @@ export function auditLikeStatusPillClass(code) {
   return "biz-pill biz-pill--muted";
 }
 
-/** 商家、代理、业务员：0 正常 1 停用 */
+/** 商家、代理、运维：0 正常 1 停用 */
 export function entityOnOffPillClass(code) {
   if (code === "0") {
     return "biz-pill biz-pill--ok";

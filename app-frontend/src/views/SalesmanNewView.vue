@@ -16,11 +16,11 @@ const isAgent = computed(() => roleCode.value === "agent");
 
 function validate() {
   if (!isAgent.value) {
-    err.value = "仅代理可新增业务员";
+    err.value = "仅代理可新增运维";
     return false;
   }
   if (!salesmanName.value.trim()) {
-    err.value = "请填写业务员姓名";
+    err.value = "请填写运维姓名";
     return false;
   }
   return true;
@@ -48,14 +48,14 @@ async function submit() {
 
 <template>
   <div class="pf-page">
-    <p v-if="!isAgent" class="pf-err">当前角色无权新增业务员。</p>
+    <p v-if="!isAgent" class="pf-err">当前角色无权新增运维。</p>
     <p v-else-if="err" class="pf-err">{{ err }}</p>
 
     <div class="pf-card">
       <div class="pf-row">
         <div class="pf-label req">姓名</div>
         <div class="pf-field-wrap">
-          <input v-model="salesmanName" class="pf-field" type="text" placeholder="请填写业务员姓名" :disabled="!isAgent" />
+          <input v-model="salesmanName" class="pf-field" type="text" placeholder="请填写运维姓名" :disabled="!isAgent" />
         </div>
       </div>
 

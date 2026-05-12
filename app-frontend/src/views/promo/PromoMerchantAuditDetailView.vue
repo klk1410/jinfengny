@@ -75,7 +75,7 @@ const FIELD_LABEL_ZH = {
   latitude: "纬度",
   oilUnitPrice: "单价（元/桶）",
   merchantCommission: "商家抽成",
-  salesmanId: "业务员",
+  salesmanId: "运维",
   linkedMerchantId: "关联商家",
   remark: "说明",
   storeImageUrl: "店铺图片"

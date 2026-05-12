@@ -431,7 +431,7 @@ public class AppBizOrderService {
         }
         char ur = scope.getUserRole();
         if (ur == '3') {
-            throw new IllegalArgumentException("业务员不可取消订单");
+            throw new IllegalArgumentException("运维不可取消订单");
         }
         String st = String.valueOf(row.get("status"));
         if ("3".equals(st) || "4".equals(st)) {
@@ -573,8 +573,8 @@ public class AppBizOrderService {
                         String assignType = rs.getString("assign_type");
                         if (recvId != null && wst != null && recvName != null && !recvName.isEmpty()) {
                             String t = "2".equals(assignType)
-                                    ? "业务员【" + recvName + "】经指派接单（历史推断）"
-                                    : "业务员【" + recvName + "】抢单成功（历史推断）";
+                                    ? "运维【" + recvName + "】经指派接单（历史推断）"
+                                    : "运维【" + recvName + "】抢单成功（历史推断）";
                             addTimelineStep(steps, "work_receive", t, wst);
                         }
                         Timestamp ft = rs.getTimestamp("finish_time");
@@ -783,7 +783,7 @@ public class AppBizOrderService {
     private static String roleName(char code) {
         if (code == '1') return "主端";
         if (code == '2') return "代理";
-        if (code == '3') return "业务员";
+        if (code == '3') return "运维";
         if (code == '4') return "商家";
         return String.valueOf(code);
     }

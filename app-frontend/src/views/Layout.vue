@@ -12,13 +12,12 @@ const TEST_OPENID_USERS = [
   { openid: "agent-openid-001", label: "代理 · 广州一代" },
   { openid: "agent-openid-002", label: "代理 · 深圳南山服务站" },
   { openid: "agent-openid-003", label: "代理 · 东莞厚街服务站" },
-  { openid: "sales-openid-001", label: "业务员 · 广州" },
-  { openid: "sales-openid-002", label: "业务员 · 深圳" },
-  { openid: "sales-openid-003", label: "业务员 · 东莞" },
+  { openid: "sales-openid-001", label: "运维 · 广州" },
+  { openid: "sales-openid-002", label: "运维 · 深圳" },
+  { openid: "sales-openid-003", label: "运维 · 东莞" },
   { openid: "merchant-openid-001", label: "商家 · 广州粤海饭店" },
   { openid: "merchant-openid-002", label: "商家 · 深圳深南茶餐厅" },
-  { openid: "merchant-openid-003", label: "商家 · 东莞厚街砂锅粥" },
-  { openid: "ops-openid-001", label: "运维" }
+  { openid: "merchant-openid-003", label: "商家 · 东莞厚街砂锅粥" }
 ];
 
 /** 后台 env_mini_subject 绑定账号，与内置演示账号合并 */
@@ -42,6 +41,15 @@ const testUserOptions = computed(() => {
 const portal = ref(null);
 const loadError = ref("");
 const loading = ref(false);
+
+/** 首页右上角待办红泡（订单/工单/店铺审核/设备审核，按当前账号数据范围） */
+const pendingTodo = ref({ total: 0 });
+
+const pendingTodoBadge = computed(() => {
+  const n = Number(pendingTodo.value?.total ?? 0);
+  if (!n || n <= 0) return "";
+  return n > 99 ? "99+" : String(n);
+});
 
 const canOpenBusiness = computed(() => !!portal.value?.hasBusinessAccess);
 const portalSections = computed(() => portal.value?.sections || []);
@@ -72,6 +80,16 @@ async function loadSubjectsFromApi() {
   }
 }
 
+async function loadPendingTodo() {
+  try {
+    pendingTodo.value = await requestJson(
+      `/app-api/portal/pending-counts?openid=${encodeURIComponent(loginOpenid.value)}`
+    );
+  } catch {
+    pendingTodo.value = { total: 0 };
+  }
+}
+
 async function refreshPortal() {
   loadError.value = "";
   loading.value = true;
@@ -84,8 +102,10 @@ async function refreshPortal() {
     portal.value = await requestJson(
       `/app-api/portal/modules?openid=${encodeURIComponent(loginOpenid.value)}`
     );
+    await loadPendingTodo();
   } catch (e) {
     portal.value = null;
+    pendingTodo.value = { total: 0 };
     loadError.value = e.message || String(e);
   } finally {
     loading.value = false;
@@ -127,9 +147,14 @@ onMounted(() => {
         ‹
       </button>
       <h1 class="mp-title">{{ headerTitle }}</h1>
-      <div class="mp-actions" aria-hidden="true">
-        <span class="caps">⋯</span>
-        <span class="ring" />
+      <div class="mp-actions">
+        <span
+          v-if="pendingTodoBadge"
+          class="todo-badge"
+          :title="`待办 ${pendingTodo.total || 0}（订单、工单、店铺审核、设备审核）`"
+        >{{ pendingTodoBadge }}</span>
+        <span class="caps" aria-hidden="true">⋯</span>
+        <span class="ring" aria-hidden="true" />
       </div>
     </header>
 
@@ -228,6 +253,22 @@ onMounted(() => {
   border: 2px solid rgba(255, 255, 255, 0.95);
   border-radius: 50%;
   box-sizing: border-box;
+}
+
+.todo-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ff4d4f;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 .body {

@@ -1000,7 +1000,7 @@ public class AppBizDataService {
     public List<Map<String, Object>> listStockSummary(String openid, Long filterAgentId) {
         OpenidBizScope s = scopeService.resolve(openid);
         Long aid = resolveScopedAgentId(s, filterAgentId);
-        if ((s.getUserRole() == '1' || s.getUserRole() == '5') && aid == null) {
+        if (s.getUserRole() == '1' && aid == null) {
             return jdbcTemplate.query(
                     "SELECT s.agent_id, a.agent_name, ot.type_name AS oil_type_name, s.stock_item_code, "
                             + "s.total_qty AS qty_on_hand, s.lock_qty AS qty_reserved, s.available_qty AS qty_available "
@@ -1052,7 +1052,7 @@ public class AppBizDataService {
     public List<Map<String, Object>> listStockFlows(String openid, Long filterAgentId) {
         OpenidBizScope s = scopeService.resolve(openid);
         Long aid = resolveScopedAgentId(s, filterAgentId);
-        if ((s.getUserRole() == '1' || s.getUserRole() == '5') && aid == null) {
+        if (s.getUserRole() == '1' && aid == null) {
             return jdbcTemplate.query(
                     "SELECT f.flow_id, f.agent_id, f.change_type AS flow_kind_code, f.related_no AS ref_no, "
                             + "f.change_qty AS qty, f.remark, f.create_time, CAST(NULL AS CHAR) AS ref_type "
@@ -1308,9 +1308,170 @@ public class AppBizDataService {
                 });
     }
 
+    /**
+     * 客户端首页待办红泡：待处理订单、工单、店铺审核、设备审核（按当前 openid 数据范围）。
+     */
+    public Map<String, Object> pendingTodoCounts(String openid) {
+        OpenidBizScope s = scopeService.resolve(openid);
+        long orders = countScopedPendingOrders(s);
+        long works = countScopedPendingWorkOrders(s);
+        long merch = countScopedPendingMerchantAudits(s, openid);
+        long dev = countScopedPendingDeviceAudits(s);
+        long total = orders + works + merch + dev;
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("total", total);
+        out.put("orders", orders);
+        out.put("workOrders", works);
+        out.put("merchantAudits", merch);
+        out.put("deviceAudits", dev);
+        return out;
+    }
+
+    private static long queryCount(JdbcTemplate jdbc, String sql, Object[] args) {
+        Long n = jdbc.queryForObject(sql, Long.class, args);
+        return n == null ? 0 : n;
+    }
+
+    private long countScopedPendingOrders(OpenidBizScope s) {
+        char r = s.getUserRole();
+        if (r != '1' && r != '2' && r != '3' && r != '4') {
+            return 0;
+        }
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT COUNT(*) FROM biz_env_order o ")
+                .append("JOIN biz_env_merchant m ON m.merchant_id = o.merchant_id AND m.del_flag = '0' ")
+                .append("WHERE o.del_flag = '0' AND o.status IN ('0','1') ");
+        List<Object> args = new ArrayList<>();
+        appendOrderPendingScope(sql, args, s);
+        return queryCount(jdbcTemplate, sql.toString(), args.toArray());
+    }
+
+    private void appendOrderPendingScope(StringBuilder sql, List<Object> args, OpenidBizScope scope) {
+        char r = scope.getUserRole();
+        if (r == '1') {
+            return;
+        }
+        if (r == '2' && scope.getAgentId() != null) {
+            sql.append(" AND o.agent_id = ?");
+            args.add(scope.getAgentId());
+            return;
+        }
+        if (r == '4' && scope.getMerchantId() != null) {
+            sql.append(" AND o.merchant_id = ?");
+            args.add(scope.getMerchantId());
+            return;
+        }
+        if (r == '3' && scope.getAgentId() != null && scope.getSalesmanId() != null) {
+            sql.append(" AND o.agent_id = ? AND (m.salesman_id = ? OR o.receive_salesman_id = ?)");
+            args.add(scope.getAgentId());
+            args.add(scope.getSalesmanId());
+            args.add(scope.getSalesmanId());
+            return;
+        }
+        sql.append(" AND 1 = 0");
+    }
+
+    private long countScopedPendingWorkOrders(OpenidBizScope s) {
+        char r = s.getUserRole();
+        if (r != '1' && r != '2' && r != '3' && r != '4') {
+            return 0;
+        }
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT COUNT(*) FROM biz_env_work_order w ")
+                .append("JOIN biz_env_merchant m ON m.merchant_id = w.merchant_id AND m.del_flag = '0' ")
+                .append("WHERE w.del_flag = '0' AND w.status IN ('0','1') ");
+        List<Object> args = new ArrayList<>();
+        appendWorkOrderPendingScope(sql, args, s);
+        return queryCount(jdbcTemplate, sql.toString(), args.toArray());
+    }
+
+    private void appendWorkOrderPendingScope(StringBuilder sql, List<Object> args, OpenidBizScope scope) {
+        char r = scope.getUserRole();
+        if (r == '1') {
+            return;
+        }
+        if (r == '2' && scope.getAgentId() != null) {
+            sql.append(" AND w.agent_id = ?");
+            args.add(scope.getAgentId());
+            return;
+        }
+        if (r == '4' && scope.getMerchantId() != null) {
+            sql.append(" AND w.merchant_id = ?");
+            args.add(scope.getMerchantId());
+            return;
+        }
+        if (r == '3' && scope.getAgentId() != null && scope.getSalesmanId() != null) {
+            sql.append(" AND w.agent_id = ? AND (")
+                    .append("(w.status = '1' AND w.receive_salesman_id IS NULL) ")
+                    .append("OR w.receive_salesman_id = ? ")
+                    .append("OR (m.salesman_id = ? AND m.agent_id = ?)")
+                    .append(")");
+            args.add(scope.getAgentId());
+            args.add(scope.getSalesmanId());
+            args.add(scope.getSalesmanId());
+            args.add(scope.getAgentId());
+            return;
+        }
+        sql.append(" AND 1 = 0");
+    }
+
+    private long countScopedPendingMerchantAudits(OpenidBizScope s, String openid) {
+        char r = s.getUserRole();
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT COUNT(*) FROM biz_env_merchant_audit a ")
+                .append("WHERE a.del_flag = '0' AND a.status = '0' ");
+        List<Object> args = new ArrayList<>();
+        if (r == '1') {
+            /* all */
+        } else if (r == '2') {
+            if (s.getAgentId() == null) {
+                sql.append(" AND 1 = 0");
+            } else {
+                sql.append(" AND a.agent_id = ?");
+                args.add(s.getAgentId());
+            }
+        } else if (r == '3') {
+            if (s.getAgentId() == null || s.getSalesmanId() == null) {
+                sql.append(" AND 1 = 0");
+            } else {
+                sql.append(" AND a.agent_id = ? AND a.submitter_salesman_id = ?");
+                args.add(s.getAgentId());
+                args.add(s.getSalesmanId());
+            }
+        } else if (r == '4') {
+            sql.append(" AND a.submitter_openid = ?");
+            args.add(openid);
+        } else {
+            sql.append(" AND 1 = 0");
+        }
+        return queryCount(jdbcTemplate, sql.toString(), args.toArray());
+    }
+
+    private long countScopedPendingDeviceAudits(OpenidBizScope s) {
+        char r = s.getUserRole();
+        if (r != '1' && r != '2') {
+            return 0;
+        }
+        StringBuilder sql = new StringBuilder()
+                .append("SELECT COUNT(*) FROM biz_env_device_event_audit a ")
+                .append("WHERE a.del_flag = '0' AND a.status = '0' ");
+        List<Object> args = new ArrayList<>();
+        if (r == '1') {
+            /* all */
+        } else {
+            if (s.getAgentId() == null) {
+                sql.append(" AND 1 = 0");
+            } else {
+                sql.append(" AND a.agent_id = ?");
+                args.add(s.getAgentId());
+            }
+        }
+        return queryCount(jdbcTemplate, sql.toString(), args.toArray());
+    }
+
     private Long resolveScopedAgentId(OpenidBizScope s, Long filterAgentId) {
         char r = s.getUserRole();
-        if (r == '1' || r == '5') {
+        if (r == '1') {
             return filterAgentId;
         }
         if (r == '2' || r == '3') {
@@ -1387,7 +1548,7 @@ public class AppBizDataService {
     private static String roleName(char code) {
         if (code == '1') return "主端";
         if (code == '2') return "代理";
-        if (code == '3') return "业务员";
+        if (code == '3') return "运维";
         if (code == '4') return "商家";
         return String.valueOf(code);
     }
@@ -1401,7 +1562,6 @@ public class AppBizDataService {
         if (code == '2') return 2L;
         if (code == '3') return 3L;
         if (code == '4') return 4L;
-        if (code == '5') return 6L;
         return 1L;
     }
 

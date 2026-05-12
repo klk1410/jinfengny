@@ -115,7 +115,7 @@ onMounted(load);
         <article class="dc-card dc-card--white"><div class="pf-line-strong">区域</div><div class="pf-line-muted">{{ org.region || "—" }}</div></article>
       </div>
 
-      <div v-else-if="base.roleName === '业务员'" class="dc-stack">
+      <div v-else-if="base.roleName === '运维' || base.roleName === '业务员'" class="dc-stack">
         <article class="dc-card dc-card--white"><div class="pf-line-strong">姓名</div><div class="pf-line-muted">{{ org.salesmanName || "—" }}</div></article>
         <article class="dc-card dc-card--white"><div class="pf-line-strong">电话</div><div class="pf-line-muted">{{ org.phone || "—" }}</div></article>
         <article class="dc-card dc-card--white"><div class="pf-line-strong">所属代理</div><div class="pf-line-muted">{{ org.agentName || "—" }}</div></article>
@@ -126,7 +126,7 @@ onMounted(load);
         <article class="dc-card dc-card--white"><div class="pf-line-strong">联系人</div><div class="pf-line-muted">{{ org.contactName || "—" }}</div></article>
         <article class="dc-card dc-card--white"><div class="pf-line-strong">电话</div><div class="pf-line-muted">{{ org.contactPhone || "—" }}</div></article>
         <article class="dc-card dc-card--white"><div class="pf-line-strong">所属代理</div><div class="pf-line-muted">{{ org.agentName || "—" }}</div></article>
-        <article class="dc-card dc-card--white"><div class="pf-line-strong">所属业务员</div><div class="pf-line-muted">{{ org.salesmanName || "—" }}</div></article>
+        <article class="dc-card dc-card--white"><div class="pf-line-strong">所属运维</div><div class="pf-line-muted">{{ org.salesmanName || "—" }}</div></article>
       </div>
 
       <div v-else class="dc-stack">

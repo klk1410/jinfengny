@@ -26,9 +26,9 @@ onMounted(load);
 
 <template>
   <div class="page">
-    <h2 class="page-title">业务员</h2>
+    <h2 class="page-title">运维</h2>
     <p v-if="showNewLink" class="subnav">
-      <router-link class="subnav-link" :to="{ name: 'salesman-new' }">新增业务员</router-link>
+      <router-link class="subnav-link" :to="{ name: 'salesman-new' }">新增运维</router-link>
     </p>
     <p v-if="err" class="err">{{ err }}</p>
     <div class="card">

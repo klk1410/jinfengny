@@ -143,9 +143,6 @@ public class AppPortalJdbcService {
         if (openid.contains("merchant-openid")) {
             return "merchant";
         }
-        if (openid.contains("ops-openid")) {
-            return "ops";
-        }
         return "guest";
     }
 

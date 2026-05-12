@@ -123,7 +123,7 @@ function formatPayload(p) {
             <span class="sum-v">{{ detail.createTime }}</span>
           </div>
           <div v-if="detail.submitterSalesmanName" class="sum-cell">
-            <span class="sum-k">业务员</span>
+            <span class="sum-k">运维</span>
             <span class="sum-v">{{ detail.submitterSalesmanName }}</span>
           </div>
           <div v-if="detail.reviewTime" class="sum-cell">

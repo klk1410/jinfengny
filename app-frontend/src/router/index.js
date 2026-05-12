@@ -32,17 +32,17 @@ export const router = createRouter({
           meta: { headerTitle: "新增代理" },
           component: () => import("../views/AgentNewView.vue")
         },
-        { path: "salesmen", name: "salesmen", meta: { headerTitle: "业务员" }, component: () => import("../views/SalesmenView.vue") },
+        { path: "salesmen", name: "salesmen", meta: { headerTitle: "运维" }, component: () => import("../views/SalesmenView.vue") },
         {
           path: "salesmen/new",
           name: "salesman-new",
-          meta: { headerTitle: "新增业务员" },
+          meta: { headerTitle: "新增运维" },
           component: () => import("../views/SalesmanNewView.vue")
         },
         {
           path: "salesmen/:salesmanId",
           name: "salesman-detail",
-          meta: { headerTitle: "业务员详情" },
+          meta: { headerTitle: "运维详情" },
           component: () => import("../views/SalesmanDetailView.vue")
         },
         { path: "devices", name: "devices", meta: { headerTitle: "设备" }, component: () => import("../views/DevicesView.vue") },
