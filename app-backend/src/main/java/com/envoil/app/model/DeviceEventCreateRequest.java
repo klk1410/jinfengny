@@ -14,9 +14,9 @@ public class DeviceEventCreateRequest {
     @NotBlank(message = "设备编号不能为空")
     private String deviceNo;
 
-    /** A 新增记录 R 移除记录 */
+    /** A 新增 R 移除 S 报废（报废仅对在库设备） */
     @NotBlank(message = "事件类型不能为空")
-    @Pattern(regexp = "^[AR]$", message = "事件类型须为 A（新增）或 R（移除）")
+    @Pattern(regexp = "^[ARS]$", message = "事件类型须为 A（新增）、R（移除）或 S（报废）")
     private String eventType;
 
     private Long merchantId;

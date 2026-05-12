@@ -125,6 +125,16 @@ public class AppDeviceEventService {
             }
         }
 
+        if ("S".equals(req.getEventType())) {
+            handleScrap(agentId, no, req.getRemark(), req.getOpenid());
+            return;
+        }
+
+        if ("R".equals(req.getEventType())) {
+            handleRemove(agentId, no, req.getRemark(), req.getOpenid());
+            return;
+        }
+
         if ("A".equals(req.getEventType())) {
             Integer dup = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM biz_env_device WHERE device_no = ? AND del_flag = '0'",
@@ -142,25 +152,134 @@ public class AppDeviceEventService {
                     agentId,
                     no,
                     deviceStatus);
-        }
 
+            if ("inbound".equals(addModeTrim)) {
+                String logRemark = buildDeviceLogRemark(req.getRemark(), "A", addModeTrim);
+                insertDeviceLog(agentId, null, no, "I", logRemark, req.getOpenid());
+            } else {
+                int priorInbound = countInboundLogs(no);
+                if (priorInbound == 0) {
+                    insertDeviceLog(agentId, null, no, "I", "【商家新增】补录入库", req.getOpenid());
+                }
+                String tRemark = buildDeviceLogRemark(req.getRemark(), "A", addModeTrim);
+                insertDeviceLog(agentId, mid, no, "T", tRemark, req.getOpenid());
+            }
+        }
+    }
+
+    private int countInboundLogs(String deviceNo) {
+        Integer n = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM biz_env_device_event_log WHERE device_no = ? AND event_type = 'I' AND del_flag = '0'",
+                Integer.class,
+                deviceNo);
+        return n == null ? 0 : n;
+    }
+
+    private void insertDeviceLog(long agentId, Long merchantId, String deviceNo, String eventType, String remark, String openid) {
         jdbc.update(
                 "INSERT INTO biz_env_device_event_log (agent_id, merchant_id, device_no, event_type, remark, operator_openid, del_flag) "
                         + "VALUES (?,?,?,?,?,?, '0')",
                 agentId,
-                mid,
-                no,
-                req.getEventType(),
-                req.getRemark(),
-                req.getOpenid());
+                merchantId,
+                deviceNo,
+                eventType,
+                remark,
+                openid);
+    }
+
+    private Map<String, Object> loadDeviceRow(String deviceNo, long agentId) {
+        List<Map<String, Object>> rows = jdbc.query(
+                "SELECT device_id, merchant_id, device_status FROM biz_env_device WHERE device_no = ? AND agent_id = ? AND del_flag = '0'",
+                (rs, i) -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("deviceId", rs.getLong("device_id"));
+                    m.put("merchantId", rs.getObject("merchant_id") == null ? null : rs.getLong("merchant_id"));
+                    m.put("deviceStatus", rs.getString("device_status"));
+                    return m;
+                },
+                deviceNo,
+                agentId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    private void handleRemove(long agentId, String deviceNo, String remark, String openid) {
+        Map<String, Object> dev = loadDeviceRow(deviceNo, agentId);
+        if (dev == null) {
+            throw new IllegalArgumentException("设备不存在或不属于该代理");
+        }
+        Long dm = (Long) dev.get("merchantId");
+        String st = (String) dev.get("deviceStatus");
+        if (dm == null) {
+            throw new IllegalArgumentException("仅可登记已安装在商家的设备移除");
+        }
+        if (!"1".equals(st)) {
+            throw new IllegalArgumentException("仅「在商家」状态的设备可登记移除");
+        }
+        String r = remark == null ? "" : remark.trim();
+        insertDeviceLog(agentId, dm, deviceNo, "R", r.isEmpty() ? null : r, openid);
+    }
+
+    private void handleScrap(long agentId, String deviceNo, String remark, String openid) {
+        Map<String, Object> dev = loadDeviceRow(deviceNo, agentId);
+        if (dev == null) {
+            throw new IllegalArgumentException("设备不存在或不属于该代理");
+        }
+        Long dm = (Long) dev.get("merchantId");
+        String st = (String) dev.get("deviceStatus");
+        if (dm != null) {
+            throw new IllegalArgumentException("仅对在库（未绑定商家）的设备可报废");
+        }
+        if (!"0".equals(st)) {
+            throw new IllegalArgumentException("仅「在库」状态的设备可报废");
+        }
+        long deviceId = ((Number) dev.get("deviceId")).longValue();
+        int u = jdbc.update(
+                "UPDATE biz_env_device SET device_status = '4' WHERE device_id = ? AND agent_id = ? AND del_flag = '0' "
+                        + "AND merchant_id IS NULL AND device_status = '0'",
+                deviceId,
+                agentId);
+        if (u == 0) {
+            throw new IllegalArgumentException("报废失败，设备状态已变更");
+        }
+        String r = remark == null ? "" : remark.trim();
+        String logRemark = r.isEmpty() ? "【报废】" : "【报废】 " + r;
+        insertDeviceLog(agentId, null, deviceNo, "S", logRemark, openid);
+    }
+
+    private static String buildDeviceLogRemark(String remark, String eventType, String addModeTrim) {
+        String rr = remark == null ? "" : remark.trim();
+        if (!"A".equals(eventType) || addModeTrim == null || addModeTrim.isEmpty()) {
+            return rr.isEmpty() ? null : rr;
+        }
+        String prefix;
+        if ("inbound".equals(addModeTrim)) {
+            prefix = "【入库】";
+        } else if ("merchant".equals(addModeTrim)) {
+            prefix = "【转移至商家】";
+        } else {
+            return rr.isEmpty() ? null : rr;
+        }
+        if (rr.isEmpty()) {
+            return prefix;
+        }
+        return prefix + " " + rr;
     }
 
     private static String labelEvent(String code) {
         if ("A".equals(code)) {
             return "新增";
         }
+        if ("I".equals(code)) {
+            return "入库";
+        }
+        if ("T".equals(code)) {
+            return "转移至商家";
+        }
         if ("R".equals(code)) {
             return "移除";
+        }
+        if ("S".equals(code)) {
+            return "报废";
         }
         return code == null ? "" : code;
     }

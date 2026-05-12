@@ -61,6 +61,25 @@ async function reject() {
   }
 }
 
+const FIELD_LABEL_ZH = {
+  industryType: "所属行业",
+  merchantName: "店铺名称",
+  contactName: "联系人",
+  contactPhone: "联系电话",
+  province: "省",
+  city: "市",
+  district: "区",
+  addressDetail: "详细地址",
+  longitude: "经度",
+  latitude: "纬度",
+  oilUnitPrice: "单价（元/桶）",
+  merchantCommission: "商家抽成",
+  salesmanId: "业务员",
+  linkedMerchantId: "关联商家",
+  remark: "说明",
+  storeImageUrl: "店铺图片"
+};
+
 watch(
   () => [shell.loginOpenid, route.params.auditId],
   () => load()
@@ -69,7 +88,16 @@ onMounted(load);
 
 function formatPayload(p) {
   if (!p || typeof p !== "object") return [];
-  return Object.entries(p).map(([k, v]) => ({ k, v: v === null || v === undefined ? "—" : String(v) }));
+  return Object.entries(p).map(([k, v]) => {
+    let display = v === null || v === undefined ? "—" : String(v);
+    if (k === "storeImageUrl" && typeof v === "string" && v.startsWith("data:")) {
+      display = "（已上传图片）";
+    }
+    if ((k === "salesmanId" || k === "linkedMerchantId") && (v === null || v === undefined || v === "")) {
+      display = "无";
+    }
+    return { label: FIELD_LABEL_ZH[k] || k, value: display };
+  });
 }
 </script>
 
@@ -89,9 +117,9 @@ function formatPayload(p) {
       <h3 class="pf-panel-title" style="margin: 14px 0 8px">修改内容</h3>
       <div class="pf-card">
         <div v-for="(line, i) in formatPayload(detail.payload)" :key="i" class="pf-row">
-          <div class="pf-label" style="flex: 0 0 110px">{{ line.k }}</div>
+          <div class="pf-label" style="flex: 0 0 120px">{{ line.label }}</div>
           <div class="pf-field-wrap">
-            <span class="pf-muted" style="text-align: right; width: 100%">{{ line.v }}</span>
+            <span class="pf-muted" style="text-align: right; width: 100%">{{ line.value }}</span>
           </div>
         </div>
       </div>

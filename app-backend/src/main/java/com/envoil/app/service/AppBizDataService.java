@@ -517,6 +517,7 @@ public class AppBizDataService {
             row.put("deviceId", rs.getLong("device_id"));
             row.put("deviceNo", rs.getString("device_no"));
             row.put("deviceType", labelDeviceType(rs.getString("device_type")));
+            row.put("deviceStatusCode", rs.getString("device_status"));
             row.put("deviceStatus", labelDeviceStatus(rs.getString("device_status")));
             row.put("merchantId", rs.getObject("merchant_id") == null ? null : rs.getLong("merchant_id"));
             row.put("merchantName", rs.getString("merchant_name"));
@@ -1230,6 +1231,9 @@ public class AppBizDataService {
         }
         if ("3".equals(code)) {
             return "停用";
+        }
+        if ("4".equals(code)) {
+            return "报废";
         }
         return code == null ? "" : code;
     }
