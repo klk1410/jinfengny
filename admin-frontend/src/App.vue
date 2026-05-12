@@ -24,6 +24,10 @@ const newFunc = ref({
   sortOrder: 0
 });
 
+/** 九宫格：编辑中的分组 / 功能项 */
+const groupEdit = ref(null);
+const funcEdit = ref(null);
+
 const selectedRoleId = ref(null);
 const rolePermSelection = ref([]);
 const subForm = ref({ openid: "", roleId: null });
@@ -184,6 +188,74 @@ async function delFunc(id) {
   syncRolePerms();
 }
 
+function startEditGroup(g) {
+  groupEdit.value = { id: g.id, title: g.title, sortOrder: g.sortOrder };
+}
+
+function cancelEditGroup() {
+  groupEdit.value = null;
+}
+
+async function saveGroupEdit() {
+  if (!groupEdit.value) return;
+  err.value = "";
+  try {
+    const x = groupEdit.value;
+    await requestJson(`/prod-api/admin/portal/groups/${x.id}`, {
+      method: "PUT",
+      body: JSON.stringify({ title: x.title, sortOrder: x.sortOrder })
+    });
+    groupEdit.value = null;
+    await loadPortalTree();
+  } catch (e) {
+    err.value = e.message || String(e);
+    alert(err.value);
+  }
+}
+
+function startEditFunc(f) {
+  funcEdit.value = {
+    id: f.id,
+    groupId: f.groupId,
+    permCode: f.permCode,
+    label: f.label,
+    icon: f.icon || "",
+    routePath: f.routePath || "",
+    sortOrder: f.sortOrder
+  };
+}
+
+function cancelEditFunc() {
+  funcEdit.value = null;
+}
+
+async function saveFuncEdit() {
+  if (!funcEdit.value) return;
+  err.value = "";
+  try {
+    const x = funcEdit.value;
+    await requestJson(`/prod-api/admin/portal/functions/${x.id}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        groupId: x.groupId,
+        permCode: x.permCode,
+        label: x.label,
+        icon: x.icon,
+        routePath: x.routePath,
+        sortOrder: x.sortOrder
+      })
+    });
+    funcEdit.value = null;
+    await loadPortalTree();
+    await loadPermOptions();
+    await loadRoles();
+    syncRolePerms();
+  } catch (e) {
+    err.value = e.message || String(e);
+    alert(err.value);
+  }
+}
+
 async function saveSubject() {
   await requestJson("/prod-api/admin/mini/subjects", {
     method: "PUT",
@@ -275,7 +347,10 @@ onMounted(() => {
 
       <section v-show="tab === 'portal'" class="card">
         <h2>分组与功能项</h2>
-        <p class="muted">图标可用 emoji 或静态资源 URL；routePath 为小程序/H5 路径。</p>
+        <p class="muted">
+          图标可用 emoji 或静态资源 URL；routePath 为小程序/H5 路径（与前端 hash 路由一致，如
+          <span class="mono">#/orders</span>）。修改「权限码」后请到「角色权限」重新勾选对应入口。
+        </p>
         <div class="inline-form">
           <input v-model="newGroup.title" placeholder="新分组标题" />
           <input v-model.number="newGroup.sortOrder" type="number" placeholder="排序" class="w-sm" />
@@ -296,9 +371,18 @@ onMounted(() => {
 
         <div v-for="g in tree" :key="g.id" class="group-block">
           <div class="group-head">
-            <strong>{{ g.title }}</strong>
-            <span class="muted">sort={{ g.sortOrder }} id={{ g.id }}</span>
-            <button class="text-btn danger" @click="delGroup(g.id)">删分组</button>
+            <template v-if="groupEdit && groupEdit.id === g.id">
+              <input v-model="groupEdit.title" class="grow" placeholder="分组标题" />
+              <input v-model.number="groupEdit.sortOrder" type="number" placeholder="排序" class="w-sm" />
+              <button type="button" class="btn" @click="saveGroupEdit">保存</button>
+              <button type="button" class="text-btn" @click="cancelEditGroup">取消</button>
+            </template>
+            <template v-else>
+              <strong>{{ g.title }}</strong>
+              <span class="muted">sort={{ g.sortOrder }} id={{ g.id }}</span>
+              <button type="button" class="text-btn" @click="startEditGroup(g)">编辑</button>
+              <button type="button" class="text-btn danger" @click="delGroup(g.id)">删分组</button>
+            </template>
           </div>
           <table>
             <thead>
@@ -307,16 +391,37 @@ onMounted(() => {
                 <th>perm</th>
                 <th>图标</th>
                 <th>路由</th>
-                <th />
+                <th class="th-narrow">排序</th>
+                <th class="th-actions">操作</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="f in g.functions" :key="f.id">
-                <td>{{ f.label }}</td>
-                <td class="mono">{{ f.permCode }}</td>
-                <td>{{ f.icon }}</td>
-                <td class="mono">{{ f.routePath }}</td>
-                <td><button class="text-btn danger" @click="delFunc(f.id)">删</button></td>
+                <template v-if="funcEdit && funcEdit.id === f.id">
+                  <td><input v-model="funcEdit.label" class="cell-inp" /></td>
+                  <td><input v-model="funcEdit.permCode" class="cell-inp mono" /></td>
+                  <td><input v-model="funcEdit.icon" class="cell-inp" /></td>
+                  <td><input v-model="funcEdit.routePath" class="cell-inp mono" /></td>
+                  <td><input v-model.number="funcEdit.sortOrder" type="number" class="cell-inp w-sm" /></td>
+                  <td class="td-actions">
+                    <select v-model.number="funcEdit.groupId" class="cell-select">
+                      <option v-for="gg in tree" :key="gg.id" :value="gg.id">{{ gg.title }}</option>
+                    </select>
+                    <button type="button" class="btn btn-sm" @click="saveFuncEdit">保存</button>
+                    <button type="button" class="text-btn" @click="cancelEditFunc">取消</button>
+                  </td>
+                </template>
+                <template v-else>
+                  <td>{{ f.label }}</td>
+                  <td class="mono">{{ f.permCode }}</td>
+                  <td>{{ f.icon }}</td>
+                  <td class="mono">{{ f.routePath }}</td>
+                  <td>{{ f.sortOrder }}</td>
+                  <td class="td-actions">
+                    <button type="button" class="text-btn" @click="startEditFunc(f)">编辑</button>
+                    <button type="button" class="text-btn danger" @click="delFunc(f.id)">删</button>
+                  </td>
+                </template>
               </tr>
             </tbody>
           </table>
@@ -539,9 +644,49 @@ textarea {
 
 .group-head {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
   margin-bottom: 8px;
+}
+
+.group-head .grow {
+  flex: 1;
+  min-width: 140px;
+}
+
+.th-narrow {
+  width: 72px;
+}
+
+.th-actions {
+  min-width: 200px;
+}
+
+.td-actions {
+  white-space: normal;
+  vertical-align: middle;
+}
+
+.td-actions .cell-select {
+  max-width: 140px;
+  margin-right: 6px;
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
+.cell-inp {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
+.btn-sm {
+  padding: 4px 10px;
+  font-size: 12px;
+  margin-right: 4px;
 }
 
 table {
