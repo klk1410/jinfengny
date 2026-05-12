@@ -1,8 +1,9 @@
 package com.envoil.app.model;
 
-import javax.validation.constraints.Min;
+import javax.validation.constraints.DecimalMin;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Positive;
 
 public class AccessoryCreateRequest {
 
@@ -15,13 +16,13 @@ public class AccessoryCreateRequest {
     private Long typeId;
 
     @NotNull(message = "入库成本不能为空")
-    @Min(value = 0, message = "入库成本不能小于0")
+    @DecimalMin(value = "0", inclusive = true, message = "入库成本不能小于0")
     private Double inboundCost;
 
     private String accCode;
 
     @NotNull(message = "数量不能为空")
-    @Min(value = 1, message = "数量须大于0")
+    @Positive(message = "数量须大于0")
     private Double qty;
 
     /**

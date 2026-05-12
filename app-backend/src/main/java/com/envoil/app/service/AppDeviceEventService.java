@@ -129,6 +129,11 @@ public class AppDeviceEventService {
             return;
         }
 
+        if ("T".equals(req.getEventType())) {
+            handleTransferToMerchant(agentId, no, mid, req.getRemark(), req.getOpenid());
+            return;
+        }
+
         if ("A".equals(req.getEventType())) {
             Integer dup = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM biz_env_device WHERE device_no = ? AND del_flag = '0'",
@@ -244,6 +249,46 @@ public class AppDeviceEventService {
         String r = remark == null ? "" : remark.trim();
         String logRemark = r.isEmpty() ? "【移除回库】" : "【移除回库】 " + r;
         insertDeviceLog(agentId, dm, deviceNo, "R", logRemark, openid);
+    }
+
+    /** 在库设备转移至指定门店（装机）：merchant_id 由空变为目标店，状态 0→1。 */
+    private void handleTransferToMerchant(long agentId, String deviceNo, Long toMerchantId, String remark, String openid) {
+        if (toMerchantId == null) {
+            throw new IllegalArgumentException("请选择目标门店");
+        }
+        Integer ok = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM biz_env_merchant WHERE merchant_id = ? AND agent_id = ? AND del_flag = '0'",
+                Integer.class,
+                toMerchantId,
+                agentId);
+        if (ok == null || ok == 0) {
+            throw new IllegalArgumentException("门店不属于该代理");
+        }
+        Map<String, Object> dev = loadDeviceRow(deviceNo, agentId);
+        if (dev == null) {
+            throw new IllegalArgumentException("设备不存在或不属于该代理");
+        }
+        Long dm = (Long) dev.get("merchantId");
+        String st = (String) dev.get("deviceStatus");
+        if (dm != null) {
+            throw new IllegalArgumentException("仅对在库且未绑定门店的设备可转移至商家");
+        }
+        if (!"0".equals(st)) {
+            throw new IllegalArgumentException("仅「在库」状态的设备可转移至商家");
+        }
+        long deviceId = ((Number) dev.get("deviceId")).longValue();
+        int u = jdbc.update(
+                "UPDATE biz_env_device SET merchant_id = ?, device_status = '1' WHERE device_id = ? AND agent_id = ? "
+                        + "AND del_flag = '0' AND merchant_id IS NULL AND device_status = '0'",
+                toMerchantId,
+                deviceId,
+                agentId);
+        if (u == 0) {
+            throw new IllegalArgumentException("转移失败，设备状态已变更");
+        }
+        String r = remark == null ? "" : remark.trim();
+        String logRemark = String.format("【转移至商家】门店 #%d%s", toMerchantId, r.isEmpty() ? "" : " · " + r);
+        insertDeviceLog(agentId, toMerchantId, deviceNo, "T", logRemark, openid);
     }
 
     private void handleScrap(long agentId, String deviceNo, String remark, String openid) {

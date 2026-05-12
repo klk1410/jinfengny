@@ -24,7 +24,6 @@ const addressDetail = ref("");
 const oilUnitPrice = ref(0);
 const merchantCommission = ref(0);
 const salesmanId = ref("");
-const linkedMerchantId = ref("");
 const remark = ref("");
 const storeImageUrl = ref("");
 const imagePreview = ref("");
@@ -32,7 +31,6 @@ const submitRemark = ref("");
 
 const detail = ref(null);
 const salesmen = ref([]);
-const merchants = ref([]);
 
 const merchantId = computed(() => Number(route.params.merchantId));
 
@@ -44,12 +42,7 @@ const industryOptions = ["餐饮", "酒店", "工厂", "学校", "企事业单�
 
 async function loadPickers() {
   const oid = encodeURIComponent(shell.loginOpenid);
-  const [sm, mc] = await Promise.all([
-    requestJson(`/app-api/biz/salesmen?openid=${oid}`),
-    requestJson(`/app-api/biz/merchants?openid=${oid}`)
-  ]);
-  salesmen.value = sm || [];
-  merchants.value = (mc || []).filter((m) => m.merchantId !== merchantId.value);
+  salesmen.value = (await requestJson(`/app-api/biz/salesmen?openid=${oid}`)) || [];
 }
 
 function applyDetail(d) {
@@ -67,7 +60,6 @@ function applyDetail(d) {
   oilUnitPrice.value = d.oilUnitPrice ?? 0;
   merchantCommission.value = d.merchantCommission ?? 0;
   salesmanId.value = d.salesmanId != null ? String(d.salesmanId) : "";
-  linkedMerchantId.value = d.linkedMerchantId != null ? String(d.linkedMerchantId) : "";
   remark.value = d.remark || "";
   storeImageUrl.value = d.storeImageUrl || "";
   imagePreview.value = d.storeImageUrl || "";
@@ -135,7 +127,7 @@ function buildWriteBody() {
     remark: remark.value.trim() || null,
     storeImageUrl: storeImageUrl.value || null,
     salesmanId: salesmanId.value ? Number(salesmanId.value) : null,
-    linkedMerchantId: linkedMerchantId.value ? Number(linkedMerchantId.value) : null
+    linkedMerchantId: null
   };
 }
 
@@ -334,18 +326,6 @@ onMounted(load);
             </select>
           </div>
           <span class="pf-chevron">›</span>
-        </div>
-
-        <div v-if="canDirectEdit" class="pf-row">
-          <div class="pf-label">关联商家</div>
-          <div class="pf-field-wrap">
-            <select v-model="linkedMerchantId" class="pf-field">
-              <option value="">无</option>
-              <option v-for="m in merchants" :key="m.merchantId" :value="String(m.merchantId)">
-                {{ m.merchantName }}
-              </option>
-            </select>
-          </div>
         </div>
 
         <div class="pf-row">

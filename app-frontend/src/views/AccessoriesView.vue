@@ -9,10 +9,8 @@ const roleCode = computed(() => shell.portal?.roleCode ?? "");
 const summary = ref([]);
 const types = ref([]);
 const operators = ref([]);
-const merchants = ref([]);
 const err = ref("");
 const form = ref({
-  merchantId: "",
   typeId: "",
   inboundCost: 0,
   accCode: "",
@@ -21,20 +19,23 @@ const form = ref({
   remark: ""
 });
 
+const typeForm = ref({
+  typeName: "",
+  sortOrder: 0
+});
+
 const canCreate = computed(() => roleCode.value === "agent" || roleCode.value === "sales");
 
 async function load() {
   err.value = "";
   try {
     const oid = encodeURIComponent(shell.loginOpenid);
-    const [sum, tp, ms] = await Promise.all([
+    const [sum, tp] = await Promise.all([
       requestJson(`/app-api/biz/accessories?openid=${oid}`),
-      requestJson("/app-api/biz/accessory-types"),
-      requestJson(`/app-api/biz/merchants?openid=${oid}`)
+      requestJson("/app-api/biz/accessory-types")
     ]);
     summary.value = sum || [];
     types.value = tp || [];
-    merchants.value = ms || [];
     if (canCreate.value) {
       operators.value = await requestJson(`/app-api/biz/accessory-operators?openid=${oid}`);
       if (!form.value.operatorKey && operators.value.length) {
@@ -47,12 +48,39 @@ async function load() {
     err.value = e.message || String(e);
     summary.value = [];
     types.value = [];
-    merchants.value = [];
   }
 }
 
 function openType(row) {
   router.push({ name: "accessory-type-detail", params: { typeId: String(row.typeId) } });
+}
+
+async function onCreateType() {
+  err.value = "";
+  try {
+    const name = typeForm.value.typeName.trim();
+    if (!name) {
+      throw new Error("请填写种类名称");
+    }
+    const body = {
+      openid: shell.loginOpenid,
+      typeName: name,
+      sortOrder: Number(typeForm.value.sortOrder) || 0
+    };
+    const res = await requestJson("/app-api/biz/accessory-types", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    typeForm.value.typeName = "";
+    typeForm.value.sortOrder = 0;
+    await load();
+    if (res && res.typeId != null) {
+      form.value.typeId = String(res.typeId);
+    }
+  } catch (e) {
+    err.value = e.message || String(e);
+  }
 }
 
 async function onCreate() {
@@ -76,9 +104,6 @@ async function onCreate() {
     const code = form.value.accCode.trim();
     if (code) {
       body.accCode = code;
-    }
-    if (form.value.merchantId) {
-      body.merchantId = Number(form.value.merchantId);
     }
     await requestJson("/app-api/biz/accessories", {
       method: "POST",
@@ -105,16 +130,20 @@ onMounted(load);
     <p v-if="err" class="err">{{ err }}</p>
 
     <div v-if="canCreate" class="card">
-      <h3 class="sub">配件入库</h3>
+      <h3 class="sub">新增配件种类</h3>
       <div class="row">
-        <label>关联门店</label>
-        <select v-model="form.merchantId" class="inp">
-          <option value="">无（代理级库存）</option>
-          <option v-for="m in merchants" :key="m.merchantId" :value="String(m.merchantId)">
-            {{ m.merchantName }}（{{ m.merchantId }}）
-          </option>
-        </select>
+        <label>种类名称</label>
+        <input v-model="typeForm.typeName" class="inp" type="text" placeholder="必填" />
       </div>
+      <div class="row">
+        <label>排序</label>
+        <input v-model.number="typeForm.sortOrder" class="inp" type="number" placeholder="数字越小越靠前，默认 0" />
+      </div>
+      <button type="button" class="btn btn-outline" @click="onCreateType">保存种类</button>
+    </div>
+
+    <div v-if="canCreate" class="card">
+      <h3 class="sub">配件入库</h3>
       <div class="row">
         <label>种类</label>
         <select v-model="form.typeId" class="inp">
@@ -214,6 +243,11 @@ onMounted(load);
   padding: 8px 14px;
   font-size: 13px;
   cursor: pointer;
+}
+.btn-outline {
+  background: #fff;
+  color: #1f6dff;
+  border: 1px solid #1f6dff;
 }
 .sum-row {
   display: flex;

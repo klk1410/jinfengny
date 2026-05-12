@@ -160,7 +160,7 @@ public class AppBizOrderService {
         OpenidBizScope scope = scopeService.resolve(openid);
         StringBuilder sql = new StringBuilder()
                 .append("SELECT o.order_no, m.merchant_name, tm.merchant_name AS to_merchant_name, o.order_type, o.status AS st, o.pay_type, ")
-                .append("o.amount_payable, o.order_time, o.work_order_no, o.oil_bucket_count, o.to_merchant_id ")
+                .append("o.amount_payable, o.order_time, o.work_order_no, o.estimated_work_hours, o.oil_bucket_count, o.to_merchant_id ")
                 .append("FROM biz_env_order o ")
                 .append("JOIN biz_env_merchant m ON m.merchant_id = o.merchant_id AND m.del_flag = '0' ")
                 .append("LEFT JOIN biz_env_merchant tm ON tm.merchant_id = o.to_merchant_id AND tm.del_flag = '0' ")
@@ -181,6 +181,8 @@ public class AppBizOrderService {
             row.put("orderTypeCode", rs.getString("order_type"));
             row.put("createTime", formatTs(rs.getTimestamp("order_time")));
             row.put("workOrderNo", rs.getString("work_order_no"));
+            BigDecimal estH = rs.getBigDecimal("estimated_work_hours");
+            row.put("estimatedWorkHours", estH == null ? null : estH.doubleValue());
             row.put("toMerchantId", rs.getObject("to_merchant_id") == null ? null : rs.getLong("to_merchant_id"));
             row.put("toMerchantName", rs.getString("to_merchant_name"));
             return row;
@@ -264,10 +266,22 @@ public class AppBizOrderService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, Object> confirmOrder(String openid, String orderNo) {
+    public Map<String, Object> confirmOrder(String openid, String orderNo, Double estimatedWorkHours) {
         OpenidBizScope scope = scopeService.resolve(openid);
         if (scope.getUserRole() != '1' && scope.getUserRole() != '2') {
             throw new IllegalArgumentException("仅主端或代理可确认订单");
+        }
+        BigDecimal hoursBd = null;
+        if (estimatedWorkHours != null && !estimatedWorkHours.isNaN() && !estimatedWorkHours.isInfinite()) {
+            hoursBd = BigDecimal.valueOf(estimatedWorkHours).setScale(2, RoundingMode.HALF_UP);
+        }
+        if (scope.getUserRole() == '2') {
+            if (hoursBd == null || hoursBd.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("请填写预计工作时间（小时）");
+            }
+            if (hoursBd.compareTo(BigDecimal.valueOf(168)) > 0) {
+                throw new IllegalArgumentException("预计工作时间不能超过168小时");
+            }
         }
         Map<String, Object> row = jdbcTemplate.query(
                 "SELECT o.order_id, o.order_no, o.status, o.agent_id, o.merchant_id, o.order_type, o.oil_bucket_count "
@@ -319,8 +333,10 @@ public class AppBizOrderService {
                 agentId,
                 acceptDeadline);
         int n = jdbcTemplate.update(
-                "UPDATE biz_env_order SET status = '1', work_order_no = ? WHERE order_no = ? AND del_flag = '0' AND status = '0'",
+                "UPDATE biz_env_order SET status = '1', work_order_no = ?, estimated_work_hours = ? "
+                        + "WHERE order_no = ? AND del_flag = '0' AND status = '0'",
                 woNo,
+                hoursBd,
                 orderNo);
         if (n == 0) {
             throw new IllegalArgumentException("确认失败，订单状态已变更");
@@ -335,7 +351,11 @@ public class AppBizOrderService {
                     "SELECT agent_name FROM biz_env_agent WHERE agent_id = ? AND del_flag = '0'",
                     String.class,
                     scope.getAgentId());
-            confirmTitle = "代理【" + agentName + "】确认订单，生成待分配工单";
+            confirmTitle = "代理【"
+                    + agentName
+                    + "】确认订单（预计 "
+                    + formatWorkHoursLabel(hoursBd)
+                    + " 小时），生成待分配工单";
             actorRef = scope.getAgentId();
         }
         orderProcessLogService.append(
@@ -741,6 +761,13 @@ public class AppBizOrderService {
         if (code == '3') return "sales";
         if (code == '4') return "merchant";
         return String.valueOf(code);
+    }
+
+    private static String formatWorkHoursLabel(BigDecimal hours) {
+        if (hours == null) {
+            return "—";
+        }
+        return hours.stripTrailingZeros().toPlainString();
     }
 
     private static String formatTs(Timestamp ts) {

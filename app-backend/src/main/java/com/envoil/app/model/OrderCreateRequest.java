@@ -1,6 +1,6 @@
 package com.envoil.app.model;
 
-import javax.validation.constraints.Min;
+import javax.validation.constraints.DecimalMin;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 
@@ -22,7 +22,7 @@ public class OrderCreateRequest {
     private Double unitPrice;
 
     @NotNull(message = "数量不能为空")
-    @Min(value = 1, message = "数量最少1桶")
+    @DecimalMin(value = "1", inclusive = true, message = "数量最少1桶")
     private Double bucketCount;
 
     @NotBlank(message = "支付方式不能为空")

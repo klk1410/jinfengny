@@ -7,6 +7,7 @@ import com.envoil.app.model.MerchantCreateRequest;
 import com.envoil.app.model.MerchantUpdateRequest;
 import com.envoil.app.model.AccountShareCreateRequest;
 import com.envoil.app.model.AccessoryCreateRequest;
+import com.envoil.app.model.AccessoryTypeCreateRequest;
 import com.envoil.app.model.AgentCreateRequest;
 import com.envoil.app.model.SalesmanCreateRequest;
 import com.envoil.app.service.AppBizDataService;
@@ -132,6 +133,11 @@ public class AppBizController {
     @GetMapping("/accessory-types")
     public ApiResponse<?> accessoryTypes() {
         return ApiResponse.ok(bizDataService.listAccessoryTypes());
+    }
+
+    @PostMapping("/accessory-types")
+    public ApiResponse<?> createAccessoryType(@Validated @RequestBody AccessoryTypeCreateRequest req) {
+        return ApiResponse.ok(bizDataService.createAccessoryType(req));
     }
 
     @GetMapping("/accessory-operators")

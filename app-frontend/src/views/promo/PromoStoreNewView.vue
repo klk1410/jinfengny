@@ -19,7 +19,6 @@ const city = ref("");
 const district = ref("");
 const addressDetail = ref("");
 const salesmanId = ref("");
-const linkedMerchantId = ref("");
 const remark = ref("");
 const storeImageUrl = ref("");
 const imagePreview = ref("");
@@ -27,19 +26,13 @@ const agentId = ref("1");
 
 const industryOptions = ["餐饮", "酒店", "工厂", "学校", "企事业单位", "其他"];
 const salesmen = ref([]);
-const merchants = ref([]);
 
 const roleCode = computed(() => shell.portal?.roleCode ?? "");
 const isMain = computed(() => roleCode.value === "main");
 
 async function loadPickers() {
   const oid = encodeURIComponent(shell.loginOpenid);
-  const [sm, mc] = await Promise.all([
-    requestJson(`/app-api/biz/salesmen?openid=${oid}`),
-    requestJson(`/app-api/biz/merchants?openid=${oid}`)
-  ]);
-  salesmen.value = sm || [];
-  merchants.value = mc || [];
+  salesmen.value = (await requestJson(`/app-api/biz/salesmen?openid=${oid}`)) || [];
 }
 
 function openMapHint() {
@@ -131,9 +124,6 @@ async function submit() {
     }
     if (salesmanId.value) {
       body.salesmanId = Number(salesmanId.value);
-    }
-    if (linkedMerchantId.value) {
-      body.linkedMerchantId = Number(linkedMerchantId.value);
     }
     const res = await requestJson("/app-api/biz/merchants", {
       method: "POST",
@@ -228,19 +218,6 @@ onMounted(() => {
             <option value="">选择业务员</option>
             <option v-for="s in salesmen" :key="s.salesmanId" :value="String(s.salesmanId)">
               {{ s.salesmanName }} · {{ s.phone || "—" }}
-            </option>
-          </select>
-        </div>
-        <span class="pf-chevron">›</span>
-      </div>
-
-      <div class="pf-row">
-        <div class="pf-label">商家</div>
-        <div class="pf-field-wrap">
-          <select v-model="linkedMerchantId" class="pf-field">
-            <option value="">选择商家</option>
-            <option v-for="m in merchants" :key="m.merchantId" :value="String(m.merchantId)">
-              {{ m.merchantName }}
             </option>
           </select>
         </div>

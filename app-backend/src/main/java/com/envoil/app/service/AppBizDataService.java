@@ -4,6 +4,7 @@ import com.envoil.app.model.MerchantCreateRequest;
 import com.envoil.app.model.MerchantUpdateRequest;
 import com.envoil.app.model.OpenidBizScope;
 import com.envoil.app.model.AccessoryCreateRequest;
+import com.envoil.app.model.AccessoryTypeCreateRequest;
 import com.envoil.app.model.AccessoryConsumeLine;
 import com.envoil.app.model.AgentCreateRequest;
 import com.envoil.app.model.SalesmanCreateRequest;
@@ -723,6 +724,47 @@ public class AppBizDataService {
                     row.put("sortOrder", rs.getInt("sort_order"));
                     return row;
                 });
+    }
+
+    /**
+     * 新增配件种类（与入库登记相同：仅代理或业务员可操作）。
+     */
+    public Map<String, Object> createAccessoryType(AccessoryTypeCreateRequest req) {
+        OpenidBizScope s = scopeService.resolve(req.getOpenid());
+        char r = s.getUserRole();
+        if (r != '2' && r != '3') {
+            throw new IllegalArgumentException("仅代理或业务员可新增配件种类");
+        }
+        if (s.getAgentId() == null) {
+            throw new IllegalArgumentException("未绑定代理");
+        }
+        String name = req.getTypeName() == null ? "" : req.getTypeName().trim();
+        if (name.isEmpty()) {
+            throw new IllegalArgumentException("种类名称不能为空");
+        }
+        Integer dup = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM biz_env_accessory_type WHERE type_name = ? AND del_flag = '0'",
+                Integer.class,
+                name);
+        if (dup != null && dup > 0) {
+            throw new IllegalArgumentException("已存在同名的配件种类");
+        }
+        int sort = req.getSortOrder() == null ? 0 : req.getSortOrder();
+        GeneratedKeyHolder kh = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO biz_env_accessory_type (type_name, sort_order, del_flag) VALUES (?,?, '0')",
+                    Statement.RETURN_GENERATED_KEYS);
+            ps.setString(1, name);
+            ps.setInt(2, sort);
+            return ps;
+        }, kh);
+        long id = Objects.requireNonNull(kh.getKey()).longValue();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("typeId", id);
+        out.put("typeName", name);
+        out.put("sortOrder", sort);
+        return out;
     }
 
     /**

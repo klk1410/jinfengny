@@ -11,10 +11,15 @@ const devices = ref([]);
 const err = ref("");
 const showRemove = ref(false);
 const showScrap = ref(false);
+const showTransfer = ref(false);
 const rDeviceNo = ref("");
 const sDeviceNo = ref("");
+const tDeviceNo = ref("");
+const tMerchantId = ref("");
+const tRemark = ref("");
 const rRemark = ref("");
 const sRemark = ref("");
+const merchants = ref([]);
 const agentId = ref("1");
 
 const roleCode = computed(() => shell.portal?.roleCode ?? "");
@@ -23,6 +28,7 @@ const canLogRemove = computed(
   () => roleCode.value === "main" || roleCode.value === "agent" || roleCode.value === "sales"
 );
 const canScrap = computed(() => canLogRemove.value);
+const canTransferToMerchant = computed(() => canLogRemove.value);
 
 const devicesOnMerchant = computed(() =>
   (devices.value || []).filter((d) => d.merchantId != null && d.deviceStatusCode === "1")
@@ -49,6 +55,60 @@ async function loadDevices() {
     devices.value = await requestJson(`/app-api/biz/devices?openid=${oid}`);
   } catch {
     devices.value = [];
+  }
+}
+
+async function loadMerchants() {
+  try {
+    const oid = encodeURIComponent(shell.loginOpenid);
+    merchants.value = await requestJson(`/app-api/biz/merchants?openid=${oid}`);
+  } catch {
+    merchants.value = [];
+  }
+}
+
+async function openTransferPanel() {
+  showTransfer.value = true;
+  tDeviceNo.value = "";
+  tMerchantId.value = "";
+  tRemark.value = "";
+  await loadMerchants();
+}
+
+async function submitTransfer() {
+  err.value = "";
+  if (!tDeviceNo.value.trim()) {
+    err.value = "请选择设备";
+    return;
+  }
+  if (!tMerchantId.value) {
+    err.value = "请选择目标门店";
+    return;
+  }
+  try {
+    const body = {
+      openid: shell.loginOpenid,
+      eventType: "T",
+      deviceNo: tDeviceNo.value.trim(),
+      merchantId: Number(tMerchantId.value),
+      remark: tRemark.value.trim() || null
+    };
+    if (isMain.value) {
+      body.agentId = Number(agentId.value);
+    }
+    await requestJson("/app-api/biz/device-events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    showTransfer.value = false;
+    tDeviceNo.value = "";
+    tMerchantId.value = "";
+    tRemark.value = "";
+    await load();
+    await loadDevices();
+  } catch (e) {
+    err.value = e.message || String(e);
   }
 }
 
@@ -128,7 +188,7 @@ onMounted(() => {
   <div class="pf-page">
     <p v-if="err" class="pf-err">{{ err }}</p>
     <p class="pf-muted" style="margin: 0 0 8px">
-      设备列表与操作。登记移除仅<strong>在店且已绑定门店</strong>的设备；登记报废仅<strong>在库且未绑定门店</strong>的设备。跨店装机请使用订单「转移商家」。
+      设备列表与操作。<strong>转移商家</strong>：将在库设备调至指定门店（装机）；登记移除仅<strong>在店且已绑定门店</strong>的设备；登记报废仅<strong>在库且未绑定门店</strong>的设备。门店之间的设备迁移（跨店）请使用订单类型「转移商家」工单。
     </p>
     <div class="device-status-legend pf-muted" style="margin: 0 0 12px">
       <span style="margin-right: 6px">状态色标</span>
@@ -141,6 +201,7 @@ onMounted(() => {
 
     <div class="pf-toolbar">
       <button type="button" class="pf-tool pf-tool--ghost" @click="load(); loadDevices()">刷新</button>
+      <button v-if="canTransferToMerchant" type="button" class="pf-tool" @click="openTransferPanel">转移商家</button>
       <button v-if="canLogRemove" type="button" class="pf-tool" @click="showRemove = true">登记移除</button>
       <button v-if="canScrap" type="button" class="pf-tool" @click="showScrap = true">登记报废</button>
     </div>
@@ -159,6 +220,39 @@ onMounted(() => {
             {{ d.agentName || "#" + d.agentId }}{{ d.agentId != null ? "（" + d.agentId + "）" : "" }}
           </div>
         </article>
+      </div>
+    </div>
+
+    <div v-if="showTransfer" class="pf-panel" style="margin-top: 14px">
+      <h3 class="pf-panel-title">转移商家（在库 → 门店）</h3>
+      <div class="pf-row" style="border: none; padding: 0; min-height: auto; margin-bottom: 10px">
+        <div v-if="isMain" class="pf-row" style="width: 100%; padding-left: 0; padding-right: 0">
+          <div class="pf-label req">代理</div>
+          <div class="pf-field-wrap">
+            <input v-model="agentId" class="pf-field" type="text" style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px" />
+          </div>
+        </div>
+      </div>
+      <div class="pf-row" style="border: none; padding: 0; flex-direction: column; align-items: stretch; gap: 10px">
+        <select v-model="tDeviceNo" style="padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0">
+          <option value="">选择在库设备 *</option>
+          <option v-for="d in devicesInStock" :key="d.deviceId" :value="d.deviceNo">
+            {{ d.deviceNo }} · {{ d.deviceStatus }}
+          </option>
+        </select>
+        <select v-model="tMerchantId" style="padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0">
+          <option value="">选择目标门店 *</option>
+          <option v-for="m in merchants" :key="m.merchantId" :value="String(m.merchantId)">
+            {{ m.merchantName }} · {{ m.city || "—" }} · #{{ m.merchantId }}
+          </option>
+        </select>
+        <input v-model="tRemark" type="text" placeholder="说明（选填）" style="padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0" />
+        <p v-if="!devicesInStock.length" class="pf-muted" style="margin: 0">当前无可调出设备（须为在库、未绑定门店）。</p>
+        <p v-if="devicesInStock.length && !merchants.length" class="pf-muted" style="margin: 0">暂无可用门店，请先维护门店资料。</p>
+        <div style="display: flex; gap: 8px">
+          <button type="button" class="pf-submit" style="flex: 1" @click="submitTransfer">提交转移</button>
+          <button type="button" class="pf-tool pf-tool--ghost" style="flex: 1; padding: 14px" @click="showTransfer = false">取消</button>
+        </div>
       </div>
     </div>
 

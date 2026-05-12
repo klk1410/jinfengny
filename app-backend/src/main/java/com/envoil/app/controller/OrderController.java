@@ -50,8 +50,11 @@ public class OrderController {
     }
 
     @PostMapping("/confirm/{orderNo}")
-    public ApiResponse<?> confirm(@PathVariable String orderNo, @RequestParam String openid) {
-        Map<String, Object> data = appBizOrderService.confirmOrder(openid, orderNo);
+    public ApiResponse<?> confirm(
+            @PathVariable String orderNo,
+            @RequestParam String openid,
+            @RequestParam(required = false) Double estimatedWorkHours) {
+        Map<String, Object> data = appBizOrderService.confirmOrder(openid, orderNo, estimatedWorkHours);
         if (data == null) {
             return ApiResponse.fail("未找到订单或无确认权限");
         }
