@@ -65,6 +65,7 @@ public class AppBizDataService {
             row.put("agentName", rs.getString("agent_name"));
             row.put("salesmanName", rs.getString("salesman_name"));
             row.put("status", labelMerchantStatus(rs.getString("status")));
+            row.put("statusCode", rs.getString("status"));
             return row;
         });
     }
@@ -349,6 +350,7 @@ public class AppBizDataService {
             row.put("province", rs.getString("province"));
             row.put("city", rs.getString("city"));
             row.put("status", labelAgentStatus(rs.getString("status")));
+            row.put("statusCode", rs.getString("status"));
             return row;
         });
     }
@@ -399,6 +401,7 @@ public class AppBizDataService {
             row.put("phone", rs.getString("phone"));
             row.put("agentId", rs.getLong("agent_id"));
             row.put("status", labelSalesmanStatus(rs.getString("status")));
+            row.put("statusCode", rs.getString("status"));
             return row;
         });
     }

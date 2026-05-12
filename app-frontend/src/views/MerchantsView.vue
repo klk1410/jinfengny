@@ -1,6 +1,7 @@
 <script setup>
 import { inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../api.js";
+import { entityOnOffPillClass } from "../utils/statusDisplay.js";
 
 const shell = inject("appShell");
 const rows = ref([]);
@@ -28,10 +29,13 @@ onMounted(load);
     <div class="card">
       <div v-if="!rows.length" class="muted">暂无数据</div>
       <div v-for="(m, i) in rows" :key="i" class="item">
-        <div class="line strong">#{{ m.merchantId }} {{ m.merchantName }}</div>
+        <div class="row-head">
+          <span class="line strong">#{{ m.merchantId }} {{ m.merchantName }}</span>
+          <span :class="entityOnOffPillClass(m.statusCode)">{{ m.status }}</span>
+        </div>
         <div class="line">{{ m.contactName }} {{ m.contactPhone }}</div>
         <div class="line muted">{{ m.city }} · {{ m.agentName }} · {{ m.salesmanName || "—" }}</div>
-        <div class="line">单价 ¥{{ m.oilUnitPrice }} · 欠费 ¥{{ m.arrearsAmount }} · {{ m.status }}</div>
+        <div class="line amt-line">单价 ¥{{ m.oilUnitPrice }} · 欠费 ¥{{ m.arrearsAmount }}</div>
       </div>
     </div>
   </div>
@@ -74,5 +78,14 @@ onMounted(load);
 }
 .strong {
   font-weight: 600;
+}
+.row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.amt-line {
+  color: #334155;
 }
 </style>

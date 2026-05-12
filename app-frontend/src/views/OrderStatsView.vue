@@ -1,6 +1,7 @@
 <script setup>
 import { inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../api.js";
+import { orderWorkStatusPillClass } from "../utils/statusDisplay.js";
 
 const shell = inject("appShell");
 const stats = ref(null);
@@ -30,6 +31,20 @@ async function load() {
 
 watch(() => shell.loginOpenid, load);
 onMounted(load);
+
+function orderMidLine(o) {
+  const pay = o.payType || "";
+  const name = o.merchantName || "";
+  if (o.orderTypeCode === "1" || o.orderType === "加油") {
+    const b = o.bucketCount != null ? `${o.bucketCount} 桶` : "";
+    return `${name} · 加油${b ? " · " + b : ""} · ${pay}`;
+  }
+  if (o.orderTypeCode === "4" || o.orderType === "转移商家") {
+    const to = o.toMerchantName ? ` → ${o.toMerchantName}` : "";
+    return `${name}${to} · 转移商家 · ${pay}`;
+  }
+  return `${name} · ${o.orderType || "—"} · ${pay}`;
+}
 </script>
 
 <template>
@@ -47,22 +62,22 @@ onMounted(load);
       <div v-if="stats?.byStatus?.length" class="stats-block">
         <div class="stats-title">按状态</div>
         <div v-for="(s, i) in stats.byStatus" :key="`st-${i}`" class="stats-row">
-          <span>{{ s.status }}</span>
-          <span>{{ s.orderCount }} 单 · ¥{{ s.amountTotal }}</span>
+          <span :class="orderWorkStatusPillClass(s.statusCode)">{{ s.status }}</span>
+          <span class="stats-val">{{ s.orderCount }} 单 · ¥{{ s.amountTotal }}</span>
         </div>
       </div>
       <div v-if="stats?.byMerchant?.length" class="stats-block">
         <div class="stats-title">按商户</div>
         <div v-for="(m, i) in stats.byMerchant" :key="`m-${i}`" class="stats-row">
-          <span>{{ m.merchantName }}</span>
-          <span>{{ m.orderCount }} 单 · ¥{{ m.amountTotal }}</span>
+          <span class="stats-label">{{ m.merchantName }}</span>
+          <span class="stats-val">{{ m.orderCount }} 单 · ¥{{ m.amountTotal }}</span>
         </div>
       </div>
       <div v-if="stats?.byAgent?.length" class="stats-block">
         <div class="stats-title">按代理</div>
         <div v-for="(a, i) in stats.byAgent" :key="`a-${i}`" class="stats-row">
-          <span>代理 #{{ a.agentId }}</span>
-          <span>{{ a.orderCount }} 单 · ¥{{ a.amountTotal }}</span>
+          <span class="stats-label">代理 #{{ a.agentId }}</span>
+          <span class="stats-val">{{ a.orderCount }} 单 · ¥{{ a.amountTotal }}</span>
         </div>
       </div>
       <div v-if="!stats" class="muted">暂无统计</div>
@@ -74,9 +89,9 @@ onMounted(load);
       <div v-for="(o, i) in orders" :key="i" class="item">
         <div class="item-top">
           <span class="no">{{ o.orderNo }}</span>
-          <span class="st">{{ o.status }}</span>
+          <span :class="orderWorkStatusPillClass(o.statusCode)">{{ o.status }}</span>
         </div>
-        <div class="item-mid">{{ o.merchantName }} · {{ o.orderType }}{{ o.bucketCount != null && (o.orderTypeCode === '1' || o.orderType === '加油') ? ' · ' + o.bucketCount + ' 桶' : '' }} · {{ o.payType }}</div>
+        <div class="item-mid">{{ orderMidLine(o) }}</div>
         <div v-if="o.workOrderNo" class="item-mid muted">工单 {{ o.workOrderNo }}</div>
         <div class="item-bot">
           <span>¥{{ o.amountPayable }}</span>
@@ -131,9 +146,20 @@ onMounted(load);
 .stats-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 10px;
   padding: 6px 0;
   border-top: 1px dashed #eef1f6;
   font-size: 12px;
+}
+.stats-label {
+  color: #334155;
+  min-width: 0;
+}
+.stats-val {
+  text-align: right;
+  color: #334155;
+  flex-shrink: 0;
 }
 .item {
   border-top: 1px solid #eef1f6;

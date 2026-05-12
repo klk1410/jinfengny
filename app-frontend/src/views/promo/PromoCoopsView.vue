@@ -3,6 +3,7 @@ import { inject, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { requestJson } from "../../api.js";
 import "./promo-form.css";
+import { coopStatusPillClass } from "../../utils/statusDisplay.js";
 
 const shell = inject("appShell");
 const router = useRouter();
@@ -37,11 +38,23 @@ onMounted(load);
     <div class="pf-card">
       <div v-if="!rows.length" class="pf-muted" style="padding: 12px">暂无数据</div>
       <div v-for="(r, i) in rows" :key="i" class="pf-item">
-        <div class="pf-line-strong">#{{ r.coopId }} {{ r.partnerName }}</div>
+        <div class="coop-head">
+          <span class="pf-line-strong">#{{ r.coopId }} {{ r.partnerName }}</span>
+          <span :class="coopStatusPillClass(r.statusCode)">{{ r.status }}</span>
+        </div>
         <div class="pf-line-muted">{{ r.contactName || "—" }} {{ r.contactPhone || "" }}</div>
-        <div class="pf-line-muted">代理 #{{ r.agentId }} · {{ r.status }} · {{ r.createTime }}</div>
+        <div class="pf-line-muted">代理 #{{ r.agentId }} · {{ r.createTime }}</div>
         <div v-if="r.remark" class="pf-line-muted">{{ r.remark }}</div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.coop-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+</style>

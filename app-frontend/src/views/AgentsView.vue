@@ -1,6 +1,7 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../api.js";
+import { entityOnOffPillClass } from "../utils/statusDisplay.js";
 
 const shell = inject("appShell");
 const rows = ref([]);
@@ -33,9 +34,12 @@ onMounted(load);
     <div class="card">
       <div v-if="!rows.length" class="muted">暂无数据</div>
       <div v-for="(a, i) in rows" :key="i" class="item">
-        <div class="line strong">#{{ a.agentId }} {{ a.agentName }}</div>
+        <div class="row-head">
+          <span class="line strong">#{{ a.agentId }} {{ a.agentName }}</span>
+          <span :class="entityOnOffPillClass(a.statusCode)">{{ a.status }}</span>
+        </div>
         <div class="line">{{ a.contactName }} {{ a.contactPhone }}</div>
-        <div class="line muted">{{ a.province }} {{ a.city }} · {{ a.status }}</div>
+        <div class="line muted">{{ a.province }} {{ a.city }}</div>
       </div>
     </div>
   </div>
@@ -89,5 +93,11 @@ onMounted(load);
 }
 .strong {
   font-weight: 600;
+}
+.row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
 }
 </style>

@@ -45,6 +45,7 @@ public class AppPromoService {
             row.put("contactPhone", rs.getString("contact_phone"));
             row.put("remark", rs.getString("remark"));
             row.put("status", labelCoopStatus(rs.getString("status")));
+            row.put("statusCode", rs.getString("status"));
             row.put("createTime", formatTs(rs.getTimestamp("create_time")));
             return row;
         });

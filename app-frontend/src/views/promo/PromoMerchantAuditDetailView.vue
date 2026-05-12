@@ -3,6 +3,7 @@ import { computed, inject, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { requestJson } from "../../api.js";
 import "./promo-form.css";
+import { auditLikeStatusPillClass } from "../../utils/statusDisplay.js";
 
 const shell = inject("appShell");
 const route = useRoute();
@@ -105,22 +106,40 @@ function formatPayload(p) {
   <div class="pf-page">
     <p v-if="err" class="pf-err">{{ err }}</p>
     <template v-if="detail">
-      <div class="pf-card">
-        <div class="pf-line-strong">审核 #{{ detail.auditId }}</div>
-        <div class="pf-line-muted">店铺 #{{ detail.merchantId }} {{ detail.merchantName }}</div>
-        <div class="pf-line-muted">状态 {{ detail.status }} · 提交 {{ detail.createTime }}</div>
-        <div v-if="detail.reviewTime" class="pf-line-muted">处理 {{ detail.reviewTime }}</div>
-        <div v-if="detail.submitRemark" class="pf-line-muted">提交说明 {{ detail.submitRemark }}</div>
-        <div v-if="detail.reviewRemark" class="pf-line-muted">审批备注 {{ detail.reviewRemark }}</div>
+      <div class="pf-card sum-card">
+        <div class="sum-title">
+          <span class="sum-h">审核 #{{ detail.auditId }}</span>
+          <span :class="auditLikeStatusPillClass(detail.statusCode)">{{ detail.status }}</span>
+        </div>
+        <div class="sum-grid">
+          <div class="sum-cell">
+            <span class="sum-k">店铺</span>
+            <span class="sum-v">#{{ detail.merchantId }} {{ detail.merchantName }}</span>
+          </div>
+          <div class="sum-cell">
+            <span class="sum-k">提交时间</span>
+            <span class="sum-v">{{ detail.createTime }}</span>
+          </div>
+          <div v-if="detail.reviewTime" class="sum-cell">
+            <span class="sum-k">处理时间</span>
+            <span class="sum-v">{{ detail.reviewTime }}</span>
+          </div>
+          <div v-if="detail.submitRemark" class="sum-cell sum-cell--full">
+            <span class="sum-k">提交说明</span>
+            <span class="sum-v sum-v--wrap">{{ detail.submitRemark }}</span>
+          </div>
+          <div v-if="detail.reviewRemark" class="sum-cell sum-cell--full">
+            <span class="sum-k">审批备注</span>
+            <span class="sum-v sum-v--wrap">{{ detail.reviewRemark }}</span>
+          </div>
+        </div>
       </div>
 
       <h3 class="pf-panel-title" style="margin: 14px 0 8px">修改内容</h3>
-      <div class="pf-card">
-        <div v-for="(line, i) in formatPayload(detail.payload)" :key="i" class="pf-row">
-          <div class="pf-label" style="flex: 0 0 120px">{{ line.label }}</div>
-          <div class="pf-field-wrap">
-            <span class="pf-muted" style="text-align: right; width: 100%">{{ line.value }}</span>
-          </div>
+      <div class="pf-card payload-card">
+        <div v-for="(line, i) in formatPayload(detail.payload)" :key="i" class="payload-row">
+          <div class="payload-k">{{ line.label }}</div>
+          <div class="payload-v">{{ line.value }}</div>
         </div>
       </div>
 
@@ -146,3 +165,76 @@ function formatPayload(p) {
     </template>
   </div>
 </template>
+
+<style scoped>
+.sum-card {
+  padding-top: 14px;
+}
+.sum-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.sum-h {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+}
+.sum-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sum-cell {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: 10px;
+  align-items: start;
+  font-size: 13px;
+}
+.sum-cell--full {
+  grid-template-columns: 88px 1fr;
+}
+.sum-k {
+  color: #64748b;
+  line-height: 1.45;
+}
+.sum-v {
+  color: #0f172a;
+  font-weight: 500;
+  text-align: right;
+  word-break: break-word;
+  line-height: 1.45;
+}
+.sum-v--wrap {
+  white-space: pre-wrap;
+}
+.payload-card {
+  padding: 4px 0 8px;
+}
+.payload-row {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid #eef1f6;
+  font-size: 13px;
+  align-items: start;
+}
+.payload-row:first-child {
+  border-top: none;
+}
+.payload-k {
+  color: #64748b;
+  line-height: 1.5;
+}
+.payload-v {
+  color: #0f172a;
+  font-weight: 500;
+  text-align: right;
+  word-break: break-word;
+  line-height: 1.5;
+}
+</style>

@@ -2,6 +2,7 @@
 import { computed, inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../../api.js";
 import "./promo-form.css";
+import { auditLikeStatusPillClass } from "../../utils/statusDisplay.js";
 
 const shell = inject("appShell");
 const rows = ref([]);
@@ -97,7 +98,10 @@ onMounted(load);
       <button type="button" class="pf-refresh" @click="load">刷新</button>
       <div v-if="!rows.length" class="pf-muted">暂无数据</div>
       <div v-for="(r, i) in rows" :key="i" class="pf-item">
-        <div class="pf-line-strong">#{{ r.withdrawId }} ¥{{ r.amount }} · {{ r.status }}</div>
+        <div class="wd-head">
+          <span class="pf-line-strong">#{{ r.withdrawId }} · ¥{{ r.amount }}</span>
+          <span :class="auditLikeStatusPillClass(r.statusCode)">{{ r.status }}</span>
+        </div>
         <div class="pf-line-muted">{{ r.createTime }} · 申请人 {{ r.applicantOpenid || "—" }}</div>
         <div v-if="r.auditRemark" class="pf-line-muted">{{ r.auditRemark }}</div>
         <div v-if="canAudit && r.statusCode === '0'" class="pf-mini-actions">
@@ -108,3 +112,12 @@ onMounted(load);
     </div>
   </div>
 </template>
+
+<style scoped>
+.wd-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+</style>

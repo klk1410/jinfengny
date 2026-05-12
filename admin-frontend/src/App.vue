@@ -54,11 +54,25 @@ async function requestJson(url, options = {}) {
     ...options,
     headers: { ...authHeaders(), ...(options.headers || {}) }
   });
-  const json = await res.json().catch(() => ({}));
+  const raw = await res.text();
+  let json = {};
+  try {
+    json = raw ? JSON.parse(raw) : {};
+  } catch {
+    if (!res.ok) {
+      throw new Error(
+        `HTTP ${res.status}：接口返回非 JSON。请确认 /prod-api 反代到 admin-backend:7266（Spring context-path 为 /prod-api）`
+      );
+    }
+    throw new Error("服务器返回非 JSON");
+  }
   if (res.status === 401 || json.code === 401) {
     token.value = "";
     localStorage.removeItem(TOKEN_KEY);
     throw new Error("登录已过期，请重新登录");
+  }
+  if (!res.ok && json.code === undefined) {
+    throw new Error(`HTTP ${res.status}：${raw.slice(0, 200)}`);
   }
   if (json.code !== 200) {
     throw new Error(json.message || "请求失败");

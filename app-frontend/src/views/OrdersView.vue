@@ -1,6 +1,7 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../api.js";
+import { orderWorkStatusPillClass } from "../utils/statusDisplay.js";
 
 const shell = inject("appShell");
 const roleCode = computed(() => shell.portal?.roleCode ?? "");
@@ -114,8 +115,8 @@ onMounted(() => {
       <div v-if="stats?.byStatus?.length" class="stats-block">
         <div class="stats-title">按状态</div>
         <div v-for="(s, i) in stats.byStatus" :key="`st-${i}`" class="stats-row">
-          <span>{{ s.status }}</span>
-          <span>{{ s.orderCount }} 单 · ¥{{ s.amountTotal }}</span>
+          <span :class="orderWorkStatusPillClass(s.statusCode)">{{ s.status }}</span>
+          <span class="stats-val">{{ s.orderCount }} 单 · ¥{{ s.amountTotal }}</span>
         </div>
       </div>
       <div v-if="stats?.byMerchant?.length" class="stats-block">
@@ -140,7 +141,7 @@ onMounted(() => {
       <div v-for="(o, i) in rows" :key="i" class="item">
         <div class="item-top">
           <span class="no">{{ o.orderNo }}</span>
-          <span class="st">{{ o.status }}</span>
+          <span :class="orderWorkStatusPillClass(o.statusCode)">{{ o.status }}</span>
         </div>
         <div class="item-mid">{{ orderMidLine(o) }}</div>
         <div v-if="o.workOrderNo" class="item-mid muted">工单 {{ o.workOrderNo }}</div>
@@ -242,9 +243,15 @@ onMounted(() => {
 .stats-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 10px;
   padding: 6px 0;
   border-top: 1px dashed #eef1f6;
   font-size: 12px;
+}
+.stats-val {
+  text-align: right;
+  color: #334155;
 }
 .link {
   border: none;

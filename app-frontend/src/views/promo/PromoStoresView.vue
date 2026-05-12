@@ -3,6 +3,7 @@ import { computed, inject, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { requestJson } from "../../api.js";
 import "./promo-form.css";
+import { entityOnOffPillClass } from "../../utils/statusDisplay.js";
 
 const shell = inject("appShell");
 const router = useRouter();
@@ -54,10 +55,13 @@ onMounted(load);
         class="pf-item pf-item--link"
         @click="router.push({ name: 'promo-store-detail', params: { merchantId: String(m.merchantId) } })"
       >
-        <div class="pf-line-strong">#{{ m.merchantId }} {{ m.merchantName }}</div>
+        <div class="store-head">
+          <span class="pf-line-strong">#{{ m.merchantId }} {{ m.merchantName }}</span>
+          <span :class="entityOnOffPillClass(m.statusCode)">{{ m.status }}</span>
+        </div>
         <div class="pf-line-muted">{{ m.contactName }} {{ m.contactPhone }}</div>
         <div class="pf-line-muted">{{ m.city }} · {{ m.agentName }} · {{ m.salesmanName || "—" }}</div>
-        <div class="pf-line-muted">单价 ¥{{ m.oilUnitPrice }} · 欠费 ¥{{ m.arrearsAmount }} · {{ m.status }}</div>
+        <div class="pf-line-muted amt-line">单价 ¥{{ m.oilUnitPrice }} · 欠费 ¥{{ m.arrearsAmount }}</div>
       </button>
     </div>
   </div>
@@ -71,5 +75,14 @@ onMounted(load);
   background: transparent;
   cursor: pointer;
   display: block;
+}
+.store-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.amt-line {
+  color: #475569;
 }
 </style>

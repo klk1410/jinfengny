@@ -1,6 +1,7 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../api.js";
+import { orderWorkStatusPillClass } from "../utils/statusDisplay.js";
 
 const shell = inject("appShell");
 const rows = ref([]);
@@ -227,12 +228,15 @@ onMounted(load);
     <div class="card">
       <div v-if="!rows.length" class="muted">暂无数据</div>
       <div v-for="(w, i) in rows" :key="i" class="item">
-        <div class="line strong">{{ w.workOrderNo }}</div>
+        <div class="wo-head">
+          <span class="wo-no">{{ w.workOrderNo }}</span>
+          <span :class="orderWorkStatusPillClass(w.statusCode)">{{ w.status }}</span>
+        </div>
         <div class="line muted">订单 {{ w.orderNo || "—" }} · {{ w.merchantName }}</div>
         <div v-if="w.workOrderTypeCode === '4' && w.toMerchantName" class="line muted">
           目标门店 {{ w.toMerchantName }}<template v-if="w.toMerchantId">（{{ w.toMerchantId }}）</template>
         </div>
-        <div class="line">{{ w.workOrderType }} · {{ w.status }}</div>
+        <div class="line wo-type">{{ w.workOrderType }}</div>
         <div v-if="w.acceptDeadline" class="line muted">
           抢单截止 {{ w.acceptDeadline }}
           <template v-if="w.grabExpired">（已结束，代理可指派）</template>
@@ -325,6 +329,21 @@ onMounted(load);
 }
 .strong {
   font-weight: 600;
+}
+.wo-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+.wo-no {
+  min-width: 0;
+  word-break: break-all;
+}
+.wo-type {
+  color: #334155;
+  font-weight: 500;
 }
 .actions {
   margin-top: 8px;

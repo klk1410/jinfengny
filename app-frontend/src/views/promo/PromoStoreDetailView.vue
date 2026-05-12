@@ -3,6 +3,7 @@ import { computed, inject, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { requestJson } from "../../api.js";
 import "./promo-form.css";
+import { entityOnOffPillClass } from "../../utils/statusDisplay.js";
 
 const shell = inject("appShell");
 const route = useRoute();
@@ -357,10 +358,21 @@ onMounted(load);
           </label>
         </div>
 
-        <div class="pf-row">
+        <div class="pf-row pf-row--stack">
           <div class="pf-label">经营信息</div>
-          <div class="pf-field-wrap">
-            <span class="pf-muted">{{ detail.status }} · 欠费 ¥{{ detail.arrearsAmount }} · 设备 {{ detail.deviceCount }}</span>
+          <div class="pf-field-wrap biz-info">
+            <div class="biz-row">
+              <span class="biz-k">账号状态</span>
+              <span :class="entityOnOffPillClass(detail.statusCode)">{{ detail.status }}</span>
+            </div>
+            <div class="biz-row">
+              <span class="biz-k">欠费金额</span>
+              <span class="biz-v">¥{{ detail.arrearsAmount }}</span>
+            </div>
+            <div class="biz-row">
+              <span class="biz-k">设备数量</span>
+              <span class="biz-v">{{ detail.deviceCount }} 台</span>
+            </div>
           </div>
         </div>
       </div>
@@ -397,5 +409,30 @@ onMounted(load);
 .pf-upload--disabled {
   opacity: 0.55;
   pointer-events: none;
+}
+.pf-row--stack .pf-field-wrap {
+  align-items: stretch;
+}
+.biz-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.biz-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+.biz-k {
+  color: #64748b;
+  flex-shrink: 0;
+}
+.biz-v {
+  color: #0f172a;
+  font-weight: 600;
+  text-align: right;
 }
 </style>

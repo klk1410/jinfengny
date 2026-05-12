@@ -2,6 +2,7 @@
 import { computed, inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../../api.js";
 import "./promo-form.css";
+import { prepaidDirectionPillClass } from "../../utils/statusDisplay.js";
 
 const shell = inject("appShell");
 const rows = ref([]);
@@ -149,7 +150,10 @@ onMounted(() => {
       <button type="button" class="pf-refresh" @click="load">刷新</button>
       <div v-if="!rows.length" class="pf-muted">暂无数据</div>
       <div v-for="(r, i) in rows" :key="i" class="pf-item">
-        <div class="pf-line-strong">{{ r.title }} · ¥{{ r.amount }} · {{ r.direction }}</div>
+        <div class="pp-head">
+          <span class="pf-line-strong">{{ r.title }} · ¥{{ r.amount }}</span>
+          <span :class="prepaidDirectionPillClass(r.directionCode)">{{ r.direction }}</span>
+        </div>
         <div class="pf-line-muted">
           {{ r.createTime }} · 代理 #{{ r.agentId }} · 门店 {{ r.merchantId ?? "—" }}
         </div>
@@ -158,3 +162,12 @@ onMounted(() => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.pp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+</style>

@@ -1,5 +1,6 @@
 package com.envoil.admin.portal;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Service;
@@ -75,9 +76,13 @@ public class PortalJdbcService {
     }
 
     public void updateGroup(long id, String title, Integer sortOrder) {
-        jdbc.update(
+        int n = jdbc.update(
                 "UPDATE env_portal_func_group SET title = ?, sort_order = ? WHERE group_id = ? AND del_flag = '0'",
                 title, sortOrder == null ? 0 : sortOrder, id);
+        if (n == 0) {
+            throw new IllegalArgumentException(
+                    "分组未更新：记录不存在、已删除，或与当前连接的数据库不一致（group_id=" + id + "）");
+        }
     }
 
     public void softDeleteGroup(long id) {
@@ -109,11 +114,19 @@ public class PortalJdbcService {
 
     public void updateFunction(long funcId, long groupId, String permCode, String label,
                               String icon, String routePath, Integer sortOrder) {
-        jdbc.update(
-                "UPDATE env_portal_function SET group_id=?, perm_code=?, label=?, icon=?, route_path=?, sort_order=? "
-                        + "WHERE func_id=? AND del_flag='0'",
-                groupId, permCode, label, icon, routePath,
-                sortOrder == null ? 0 : sortOrder, funcId);
+        try {
+            int n = jdbc.update(
+                    "UPDATE env_portal_function SET group_id=?, perm_code=?, label=?, icon=?, route_path=?, sort_order=? "
+                            + "WHERE func_id=? AND del_flag='0'",
+                    groupId, permCode, label, icon, routePath,
+                    sortOrder == null ? 0 : sortOrder, funcId);
+            if (n == 0) {
+                throw new IllegalArgumentException(
+                        "门户功能未更新：记录不存在、已删除，或与当前连接的数据库不一致（func_id=" + funcId + "）");
+            }
+        } catch (DataIntegrityViolationException ex) {
+            throw new IllegalArgumentException("权限码 perm_code 与其它入口重复（表 uk_env_portal_perm 唯一约束）", ex);
+        }
     }
 
     public List<Map<String, Object>> listRolesWithPerms() {
@@ -195,7 +208,7 @@ public class PortalJdbcService {
                 "SELECT f.perm_code AS permCode, f.label AS label, g.title AS groupTitle "
                         + "FROM env_portal_function f "
                         + "JOIN env_portal_func_group g ON g.group_id = f.group_id "
-                        + "WHERE f.del_flag = '0' AND f.status='0' AND g.del_flag='0' "
+                        +                 "WHERE f.del_flag = '0' AND f.status='0' AND g.del_flag='0' "
                         + "ORDER BY g.sort_order, g.group_id, f.sort_order, f.func_id",
                 (rs, i) -> {
                     Map<String, Object> m = new LinkedHashMap<>();
