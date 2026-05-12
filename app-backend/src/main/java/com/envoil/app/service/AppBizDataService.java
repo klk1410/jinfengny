@@ -814,11 +814,11 @@ public class AppBizDataService {
         Long aid = resolveScopedAgentId(s, filterAgentId);
         if (s.getUserRole() == '1' && aid == null) {
             return jdbcTemplate.query(
-                    "SELECT s.agent_id, a.agent_name, s.qty_on_hand, s.qty_reserved, "
-                            + " (s.qty_on_hand - s.qty_reserved) AS qty_available "
+                    "SELECT s.agent_id, a.agent_name, s.total_qty AS qty_on_hand, s.lock_qty AS qty_reserved, s.available_qty AS qty_available "
                             + "FROM biz_env_agent_stock s "
                             + "JOIN biz_env_agent a ON a.agent_id = s.agent_id AND a.del_flag = '0' "
-                            + "WHERE s.sku_code = '1' ORDER BY s.agent_id",
+                            + "WHERE s.stock_item_type = '1' AND (s.stock_item_code IS NULL OR s.stock_item_code = '') "
+                            + "AND s.del_flag = '0' ORDER BY s.agent_id",
                     (rs, i) -> {
                         Map<String, Object> row = new LinkedHashMap<>();
                         row.put("agentId", rs.getLong("agent_id"));
@@ -834,11 +834,11 @@ public class AppBizDataService {
         }
         stockService.ensureAgentRow(aid);
         return jdbcTemplate.query(
-                "SELECT s.agent_id, a.agent_name, s.qty_on_hand, s.qty_reserved, "
-                        + " (s.qty_on_hand - s.qty_reserved) AS qty_available "
+                "SELECT s.agent_id, a.agent_name, s.total_qty AS qty_on_hand, s.lock_qty AS qty_reserved, s.available_qty AS qty_available "
                         + "FROM biz_env_agent_stock s "
                         + "JOIN biz_env_agent a ON a.agent_id = s.agent_id AND a.del_flag = '0' "
-                        + "WHERE s.agent_id = ? AND s.sku_code = '1'",
+                        + "WHERE s.agent_id = ? AND s.stock_item_type = '1' AND (s.stock_item_code IS NULL OR s.stock_item_code = '') "
+                        + "AND s.del_flag = '0'",
                 (rs, i) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("agentId", rs.getLong("agent_id"));
@@ -856,16 +856,24 @@ public class AppBizDataService {
         Long aid = resolveScopedAgentId(s, filterAgentId);
         if (s.getUserRole() == '1' && aid == null) {
             return jdbcTemplate.query(
-                    "SELECT flow_id, agent_id, ref_type, ref_no, flow_kind, qty, remark, create_time "
-                            + "FROM biz_env_stock_flow ORDER BY flow_id DESC LIMIT 200",
+                    "SELECT f.flow_id, f.agent_id, f.change_type AS flow_kind_code, f.related_no AS ref_no, "
+                            + "f.change_qty AS qty, f.remark, f.create_time, CAST(NULL AS CHAR) AS ref_type "
+                            + "FROM biz_env_agent_stock_flow f "
+                            + "JOIN biz_env_agent_stock s ON s.stock_id = f.stock_id AND s.del_flag = '0' "
+                            + "WHERE s.stock_item_type = '1' AND (s.stock_item_code IS NULL OR s.stock_item_code = '') "
+                            + "ORDER BY f.flow_id DESC LIMIT 200",
                     (rs, i) -> flowRow(rs));
         }
         if (aid == null) {
             return new ArrayList<>();
         }
         return jdbcTemplate.query(
-                "SELECT flow_id, agent_id, ref_type, ref_no, flow_kind, qty, remark, create_time "
-                        + "FROM biz_env_stock_flow WHERE agent_id = ? ORDER BY flow_id DESC LIMIT 200",
+                "SELECT f.flow_id, f.agent_id, f.change_type AS flow_kind_code, f.related_no AS ref_no, "
+                        + "f.change_qty AS qty, f.remark, f.create_time, CAST(NULL AS CHAR) AS ref_type "
+                        + "FROM biz_env_agent_stock_flow f "
+                        + "JOIN biz_env_agent_stock s ON s.stock_id = f.stock_id AND s.del_flag = '0' "
+                        + "WHERE f.agent_id = ? AND s.stock_item_type = '1' AND (s.stock_item_code IS NULL OR s.stock_item_code = '') "
+                        + "ORDER BY f.flow_id DESC LIMIT 200",
                 (rs, i) -> flowRow(rs),
                 aid);
     }
@@ -1089,8 +1097,9 @@ public class AppBizDataService {
         row.put("agentId", rs.getLong("agent_id"));
         row.put("refType", rs.getString("ref_type"));
         row.put("refNo", rs.getString("ref_no"));
-        row.put("flowKind", labelFlowKind(rs.getString("flow_kind")));
-        row.put("flowKindCode", rs.getString("flow_kind"));
+        String kindCode = rs.getString("flow_kind_code");
+        row.put("flowKind", labelFlowKind(kindCode));
+        row.put("flowKindCode", kindCode);
         row.put("qty", rs.getBigDecimal("qty").doubleValue());
         row.put("remark", rs.getString("remark"));
         row.put("createTime", formatTs(rs.getTimestamp("create_time")));
@@ -1113,17 +1122,17 @@ public class AppBizDataService {
     }
 
     private static String labelFlowKind(String code) {
-        if ("R".equals(code)) {
+        if ("1".equals(code) || "I".equals(code)) {
+            return "入库";
+        }
+        if ("2".equals(code) || "R".equals(code)) {
             return "预扣";
         }
-        if ("D".equals(code)) {
+        if ("3".equals(code) || "D".equals(code)) {
             return "实扣";
         }
-        if ("B".equals(code)) {
+        if ("4".equals(code) || "B".equals(code)) {
             return "回滚";
-        }
-        if ("I".equals(code)) {
-            return "入库";
         }
         return code == null ? "" : code;
     }
