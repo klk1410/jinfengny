@@ -1,9 +1,44 @@
 <script setup>
-import { inject } from "vue";
+import { inject, onMounted } from "vue";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
 const shell = inject("appShell");
+
+/** 与门户权限码、路由一致：订单查询 / 工单 / 审核管理（含店铺+设备审核） */
+function pendingCountForEntry(entry) {
+  const p = shell.pendingTodo;
+  if (!p) return 0;
+  const perm = entry.permCode || "";
+  if (perm === "env:page:orders") return Number(p.orders) || 0;
+  if (perm === "env:page:workorders") return Number(p.workOrders) || 0;
+  if (perm === "env:page:promo:merchant-audits") {
+    return (Number(p.merchantAudits) || 0) + (Number(p.deviceAudits) || 0);
+  }
+  const rp = (entry.routePath || "").replace(/^#/, "");
+  if (rp === "/orders" || (rp.startsWith("/orders") && !rp.includes("/submit") && !rp.includes("/stats"))) {
+    return Number(p.orders) || 0;
+  }
+  if (rp.startsWith("/work-orders")) return Number(p.workOrders) || 0;
+  if (rp.startsWith("/promo/merchant-audits")) {
+    return (Number(p.merchantAudits) || 0) + (Number(p.deviceAudits) || 0);
+  }
+  return 0;
+}
+
+/** 角标文案（同一入口在一次渲染内只算一遍 pendingCount） */
+function todoBadge(entry) {
+  const n = pendingCountForEntry(entry);
+  if (!n || n <= 0) return null;
+  return {
+    text: n > 99 ? "99+" : String(n),
+    title: `待办 ${n}`
+  };
+}
+
+onMounted(() => {
+  shell.loadPendingTodo?.();
+});
 
 function onGridTap(entry) {
   const path = entry.routePath || "";
@@ -55,7 +90,12 @@ function onGridTap(entry) {
             class="cell"
             @click="onGridTap(it)"
           >
-            <div class="cell-ico">{{ it.icon || "◇" }}</div>
+            <div class="cell-ico-wrap">
+              <div class="cell-ico">{{ it.icon || "◇" }}</div>
+              <template v-for="tb in [todoBadge(it)]" :key="'td-' + si + '-' + ii">
+                <span v-if="tb" class="cell-badge" :title="tb.title">{{ tb.text }}</span>
+              </template>
+            </div>
             <div class="cell-lbl">{{ it.label }}</div>
           </button>
         </div>
@@ -142,11 +182,17 @@ function onGridTap(entry) {
   text-align: center;
 }
 
-.cell-ico {
+.cell-ico-wrap {
+  position: relative;
   width: 100%;
   aspect-ratio: 1;
   max-height: 56px;
   margin: 0 auto 8px;
+}
+
+.cell-ico {
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -155,6 +201,24 @@ function onGridTap(entry) {
   background: #f8fafc;
   border-radius: 12px;
   box-shadow: inset 0 0 0 1px #e8eef8;
+}
+
+.cell-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ff4d4f;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  box-sizing: border-box;
 }
 
 .cell-lbl {

@@ -8,8 +8,12 @@ import { entityOnOffPillClass } from "../../utils/statusDisplay.js";
 const shell = inject("appShell");
 const router = useRouter();
 const roleCode = computed(() => shell.roleCode ?? unref(shell.portal)?.roleCode ?? "");
+/** 商家账号仅维护本店资料，不展示「新增店铺」「店铺审核」 */
 const canCreateStore = computed(
-  () => roleCode.value === "main" || roleCode.value === "agent" || roleCode.value === "sales" || roleCode.value === "merchant"
+  () => roleCode.value === "main" || roleCode.value === "agent" || roleCode.value === "sales"
+);
+const canSeeStoreAuditNav = computed(
+  () => roleCode.value === "main" || roleCode.value === "agent" || roleCode.value === "sales"
 );
 const rows = ref([]);
 const err = ref("");
@@ -38,7 +42,7 @@ onMounted(load);
         新增店铺
       </button>
       <button
-        v-if="roleCode === 'main' || roleCode === 'agent' || roleCode === 'sales' || roleCode === 'merchant'"
+        v-if="canSeeStoreAuditNav"
         type="button"
         class="pf-tool pf-tool--ghost"
         @click="router.push({ name: 'promo-merchant-audits' })"

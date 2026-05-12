@@ -42,13 +42,13 @@ const portal = ref(null);
 const loadError = ref("");
 const loading = ref(false);
 
-/** 首页右上角待办红泡（订单/工单/店铺审核/设备审核，按当前账号数据范围） */
-const pendingTodo = ref({ total: 0 });
-
-const pendingTodoBadge = computed(() => {
-  const n = Number(pendingTodo.value?.total ?? 0);
-  if (!n || n <= 0) return "";
-  return n > 99 ? "99+" : String(n);
+/** 九宫格入口角标：订单 / 工单 / 审核（待处理数量，按当前账号数据范围） */
+const pendingTodo = reactive({
+  total: 0,
+  orders: 0,
+  workOrders: 0,
+  merchantAudits: 0,
+  deviceAudits: 0
 });
 
 const canOpenBusiness = computed(() => !!portal.value?.hasBusinessAccess);
@@ -82,11 +82,24 @@ async function loadSubjectsFromApi() {
 
 async function loadPendingTodo() {
   try {
-    pendingTodo.value = await requestJson(
+    const data = await requestJson(
       `/app-api/portal/pending-counts?openid=${encodeURIComponent(loginOpenid.value)}`
     );
+    Object.assign(pendingTodo, {
+      total: Number(data.total) || 0,
+      orders: Number(data.orders) || 0,
+      workOrders: Number(data.workOrders) || 0,
+      merchantAudits: Number(data.merchantAudits) || 0,
+      deviceAudits: Number(data.deviceAudits) || 0
+    });
   } catch {
-    pendingTodo.value = { total: 0 };
+    Object.assign(pendingTodo, {
+      total: 0,
+      orders: 0,
+      workOrders: 0,
+      merchantAudits: 0,
+      deviceAudits: 0
+    });
   }
 }
 
@@ -105,7 +118,13 @@ async function refreshPortal() {
     await loadPendingTodo();
   } catch (e) {
     portal.value = null;
-    pendingTodo.value = { total: 0 };
+    Object.assign(pendingTodo, {
+      total: 0,
+      orders: 0,
+      workOrders: 0,
+      merchantAudits: 0,
+      deviceAudits: 0
+    });
     loadError.value = e.message || String(e);
   } finally {
     loading.value = false;
@@ -128,6 +147,8 @@ provide(
     loadError,
     loading,
     refreshPortal,
+    loadPendingTodo,
+    pendingTodo,
     canOpenBusiness,
     portalSections,
     roleLabel
@@ -147,14 +168,9 @@ onMounted(() => {
         ‹
       </button>
       <h1 class="mp-title">{{ headerTitle }}</h1>
-      <div class="mp-actions">
-        <span
-          v-if="pendingTodoBadge"
-          class="todo-badge"
-          :title="`待办 ${pendingTodo.total || 0}（订单、工单、店铺审核、设备审核）`"
-        >{{ pendingTodoBadge }}</span>
-        <span class="caps" aria-hidden="true">⋯</span>
-        <span class="ring" aria-hidden="true" />
+      <div class="mp-actions" aria-hidden="true">
+        <span class="caps">⋯</span>
+        <span class="ring" />
       </div>
     </header>
 
@@ -253,22 +269,6 @@ onMounted(() => {
   border: 2px solid rgba(255, 255, 255, 0.95);
   border-radius: 50%;
   box-sizing: border-box;
-}
-
-.todo-badge {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: #ff4d4f;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 .body {
