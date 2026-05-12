@@ -11,6 +11,7 @@ import com.envoil.app.model.AccessoryTypeCreateRequest;
 import com.envoil.app.model.AgentCreateRequest;
 import com.envoil.app.model.SalesmanCreateRequest;
 import com.envoil.app.service.AppBizDataService;
+import com.envoil.app.service.AppDeviceEventAuditService;
 import com.envoil.app.service.AppDeviceEventService;
 import com.envoil.app.service.AppMerchantAuditService;
 import org.springframework.validation.annotation.Validated;
@@ -31,14 +32,17 @@ public class AppBizController {
 
     private final AppBizDataService bizDataService;
     private final AppDeviceEventService deviceEventService;
+    private final AppDeviceEventAuditService deviceEventAuditService;
     private final AppMerchantAuditService merchantAuditService;
 
     public AppBizController(
             AppBizDataService bizDataService,
             AppDeviceEventService deviceEventService,
+            AppDeviceEventAuditService deviceEventAuditService,
             AppMerchantAuditService merchantAuditService) {
         this.bizDataService = bizDataService;
         this.deviceEventService = deviceEventService;
+        this.deviceEventAuditService = deviceEventAuditService;
         this.merchantAuditService = merchantAuditService;
     }
 
@@ -89,6 +93,30 @@ public class AppBizController {
     public ApiResponse<?> merchantAuditReject(
             @PathVariable long auditId, @Validated @RequestBody MerchantAuditReviewRequest req) {
         merchantAuditService.reject(auditId, req);
+        return ApiResponse.ok(null);
+    }
+
+    @GetMapping("/device-event-audits")
+    public ApiResponse<?> deviceEventAudits(@RequestParam String openid) {
+        return ApiResponse.ok(deviceEventAuditService.listAudits(openid));
+    }
+
+    @GetMapping("/device-event-audits/detail")
+    public ApiResponse<?> deviceEventAuditDetail(@RequestParam String openid, @RequestParam long auditId) {
+        return ApiResponse.ok(deviceEventAuditService.getAuditDetail(openid, auditId));
+    }
+
+    @PostMapping("/device-event-audits/{auditId}/approve")
+    public ApiResponse<?> deviceEventAuditApprove(
+            @PathVariable long auditId, @Validated @RequestBody MerchantAuditReviewRequest req) {
+        deviceEventAuditService.approve(auditId, req);
+        return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/device-event-audits/{auditId}/reject")
+    public ApiResponse<?> deviceEventAuditReject(
+            @PathVariable long auditId, @Validated @RequestBody MerchantAuditReviewRequest req) {
+        deviceEventAuditService.reject(auditId, req);
         return ApiResponse.ok(null);
     }
 
@@ -158,8 +186,7 @@ public class AppBizController {
 
     @PostMapping("/device-events")
     public ApiResponse<?> deviceEventsCreate(@Validated @RequestBody DeviceEventCreateRequest req) {
-        deviceEventService.createEvent(req);
-        return ApiResponse.ok(null);
+        return ApiResponse.ok(deviceEventService.createEvent(req));
     }
 
     @GetMapping("/stock/summary")

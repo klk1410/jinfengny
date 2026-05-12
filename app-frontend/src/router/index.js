@@ -105,6 +105,18 @@ export const router = createRouter({
           component: () => import("../views/promo/PromoMerchantAuditDetailView.vue")
         },
         {
+          path: "promo/device-event-audits",
+          name: "promo-device-event-audits",
+          meta: { headerTitle: "设备操作审核" },
+          component: () => import("../views/promo/PromoDeviceEventAuditsView.vue")
+        },
+        {
+          path: "promo/device-event-audit/:auditId",
+          name: "promo-device-event-audit-detail",
+          meta: { headerTitle: "设备审核详情" },
+          component: () => import("../views/promo/PromoDeviceEventAuditDetailView.vue")
+        },
+        {
           path: "promo/device-new",
           name: "promo-device-new",
           meta: { headerTitle: "新增设备" },

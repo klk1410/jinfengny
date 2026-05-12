@@ -2,6 +2,7 @@ package com.envoil.app.service;
 
 import com.envoil.app.model.DeviceEventCreateRequest;
 import com.envoil.app.model.OpenidBizScope;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,10 +21,15 @@ public class AppDeviceEventService {
 
     private final JdbcTemplate jdbc;
     private final AppOpenidBizScopeService scopeService;
+    private final AppDeviceEventAuditService deviceEventAuditService;
 
-    public AppDeviceEventService(JdbcTemplate jdbc, AppOpenidBizScopeService scopeService) {
+    public AppDeviceEventService(
+            JdbcTemplate jdbc,
+            AppOpenidBizScopeService scopeService,
+            @Lazy AppDeviceEventAuditService deviceEventAuditService) {
         this.jdbc = jdbc;
         this.scopeService = scopeService;
+        this.deviceEventAuditService = deviceEventAuditService;
     }
 
     public List<Map<String, Object>> listEvents(String openid) {
@@ -73,8 +79,28 @@ public class AppDeviceEventService {
         });
     }
 
+    /**
+     * 业务员提交时写入审核单并返回 auditId；主端/代理直接落库。
+     */
     @Transactional(rollbackFor = Exception.class)
-    public void createEvent(DeviceEventCreateRequest req) {
+    public Object createEvent(DeviceEventCreateRequest req) {
+        OpenidBizScope s = scopeService.resolve(req.getOpenid());
+        char role = s.getUserRole();
+        if (role != '1' && role != '2' && role != '3') {
+            throw new IllegalArgumentException("无权限登记设备事件");
+        }
+        if (role == '3') {
+            return deviceEventAuditService.submitAudit(req);
+        }
+        applyDeviceEvent(req, req.getOpenid());
+        return null;
+    }
+
+    /**
+     * 执行设备台账变更并写入日志（operator_openid 使用 logOperatorOpenid，一般为提交人 openid）。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void applyDeviceEvent(DeviceEventCreateRequest req, String logOperatorOpenid) {
         OpenidBizScope s = scopeService.resolve(req.getOpenid());
         char role = s.getUserRole();
         if (role != '1' && role != '2' && role != '3') {
@@ -120,17 +146,17 @@ public class AppDeviceEventService {
         }
 
         if ("S".equals(req.getEventType())) {
-            handleScrap(agentId, no, req.getRemark(), req.getOpenid());
+            handleScrap(agentId, no, req.getRemark(), logOperatorOpenid);
             return;
         }
 
         if ("R".equals(req.getEventType())) {
-            handleRemove(agentId, no, req.getRemark(), req.getOpenid());
+            handleRemove(agentId, no, req.getRemark(), logOperatorOpenid);
             return;
         }
 
         if ("T".equals(req.getEventType())) {
-            handleTransferToMerchant(agentId, no, mid, req.getRemark(), req.getOpenid());
+            handleTransferToMerchant(agentId, no, mid, req.getRemark(), logOperatorOpenid);
             return;
         }
 
@@ -149,8 +175,91 @@ public class AppDeviceEventService {
                     no);
 
             String logRemark = buildDeviceLogRemark(req.getRemark(), "A", addModeTrim);
-            insertDeviceLog(agentId, null, no, "I", logRemark, req.getOpenid());
+            insertDeviceLog(agentId, null, no, "I", logRemark, logOperatorOpenid);
         }
+    }
+
+    /** 业务员提交审核前校验（不落库）。 */
+    public void preflightDeviceEvent(DeviceEventCreateRequest req, long agentId) {
+        Long mid = req.getMerchantId();
+        String no = req.getDeviceNo() == null ? "" : req.getDeviceNo().trim();
+        if (no.isEmpty()) {
+            throw new IllegalArgumentException("设备编号不能为空");
+        }
+        String et = req.getEventType();
+        if ("A".equals(et)) {
+            String addModeTrim = req.getAddMode() == null ? "" : req.getAddMode().trim();
+            if (!addModeTrim.isEmpty() && !"inbound".equals(addModeTrim)) {
+                throw new IllegalArgumentException("新增设备仅支持入库（inbound）");
+            }
+            Integer dup = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM biz_env_device WHERE device_no = ? AND del_flag = '0'",
+                    Integer.class,
+                    no);
+            if (dup != null && dup > 0) {
+                throw new IllegalArgumentException("设备编号已存在");
+            }
+            return;
+        }
+        if (mid != null) {
+            Integer ok = jdbc.queryForObject(
+                    "SELECT COUNT(*) FROM biz_env_merchant WHERE merchant_id = ? AND agent_id = ? AND del_flag = '0'",
+                    Integer.class,
+                    mid,
+                    agentId);
+            if (ok == null || ok == 0) {
+                throw new IllegalArgumentException("门店不属于该代理");
+            }
+        }
+        if ("S".equals(et)) {
+            Map<String, Object> dev = loadDeviceRow(no, agentId);
+            if (dev == null) {
+                throw new IllegalArgumentException("设备不存在或不属于该代理");
+            }
+            Long dm = (Long) dev.get("merchantId");
+            String st = (String) dev.get("deviceStatus");
+            if (dm != null) {
+                throw new IllegalArgumentException("仅对在库且未绑定门店的设备可报废");
+            }
+            if (!"0".equals(st)) {
+                throw new IllegalArgumentException("仅「在库（可调拨）」状态的设备可报废");
+            }
+            return;
+        }
+        if ("R".equals(et)) {
+            Map<String, Object> dev = loadDeviceRow(no, agentId);
+            if (dev == null) {
+                throw new IllegalArgumentException("设备不存在或不属于该代理");
+            }
+            Long dm = (Long) dev.get("merchantId");
+            String st = (String) dev.get("deviceStatus");
+            if (dm == null) {
+                throw new IllegalArgumentException("设备未绑定门店，仅可登记移除已在店（已装机）的设备");
+            }
+            if (!"1".equals(st)) {
+                throw new IllegalArgumentException("仅「在店」状态的设备可登记移除");
+            }
+            return;
+        }
+        if ("T".equals(et)) {
+            if (mid == null) {
+                throw new IllegalArgumentException("请选择目标门店");
+            }
+            Map<String, Object> dev = loadDeviceRow(no, agentId);
+            if (dev == null) {
+                throw new IllegalArgumentException("设备不存在或不属于该代理");
+            }
+            Long dm = (Long) dev.get("merchantId");
+            String st = (String) dev.get("deviceStatus");
+            if (dm != null) {
+                throw new IllegalArgumentException("仅对在库且未绑定门店的设备可转移至商家");
+            }
+            if (!"0".equals(st)) {
+                throw new IllegalArgumentException("仅「在库」状态的设备可转移至商家");
+            }
+            return;
+        }
+        throw new IllegalArgumentException("未知事件类型");
     }
 
     /**

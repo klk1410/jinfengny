@@ -319,45 +319,110 @@ function showFinish(row) {
 
 watch(() => shell.loginOpenid, load);
 onMounted(load);
+
+function formatHoursNum(v) {
+  if (v == null || v === "") return "—";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "—";
+  const s = Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100);
+  return `${s} 小时`;
+}
+
+function openMerchantMap(w) {
+  const lat = w.latitude;
+  const lng = w.longitude;
+  if (lat == null || lng == null || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) {
+    window.alert("该门店暂无地图坐标，无法导航");
+    return;
+  }
+  const title = encodeURIComponent(w.merchantName || "门店");
+  const url = `https://uri.amap.com/marker?position=${encodeURIComponent(String(lng))},${encodeURIComponent(String(lat))}&name=${title}`;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
 </script>
 
 <template>
   <div class="page">
     <h2 class="page-title">工单</h2>
+    <p class="wo-hint">
+      <strong>预计用时</strong>来自订单确认时填写的预计作业时长（小时）。点击整张卡片可在地图中查看<strong>门店位置</strong>（需门店已维护经纬度）。
+    </p>
     <p v-if="err" class="err">{{ err }}</p>
     <div class="card">
       <div v-if="!rows.length" class="muted">暂无数据</div>
       <div v-else class="dc-stack">
-        <article v-for="(w, i) in rows" :key="i" class="dc-card dc-card--white">
-        <div class="wo-head">
-          <span class="wo-no">{{ w.workOrderNo }}</span>
-          <span :class="orderWorkStatusPillClass(w.statusCode)">{{ w.status }}</span>
-        </div>
-        <div class="line muted">订单 {{ w.orderNo || "—" }} · {{ w.merchantName }}</div>
-        <div v-if="w.workOrderTypeCode === '4' && w.toMerchantName" class="line muted">
-          目标门店 {{ w.toMerchantName }}<template v-if="w.toMerchantId">（{{ w.toMerchantId }}）</template>
-        </div>
-        <div class="line wo-type">{{ w.workOrderType }}</div>
-        <div v-if="w.acceptDeadline" class="line muted">
-          抢单截止 {{ w.acceptDeadline }}
-          <template v-if="w.grabExpired">（已结束，代理可指派）</template>
-        </div>
-        <div class="line muted">接单 {{ w.receiveSalesmanName || "—" }} · {{ w.workOrderTime }}</div>
-        <div class="actions">
-          <button v-if="showReceive(w)" type="button" class="btn-sm" @click="onReceive(w.workOrderNo)">抢单</button>
-          <button v-if="showAssign(w)" type="button" class="btn-sm secondary" @click="openAssignDialog(w)">指派</button>
-          <button
-            v-if="showFinish(w) && roleCode === 'sales'"
-            type="button"
-            class="btn-sm ok"
-            @click="onSalesFinishClick(w)"
-          >
-            结单
-          </button>
-          <button v-if="showFinish(w) && roleCode !== 'sales'" type="button" class="btn-sm ok" @click="onAgentFinishClick(w)">
-            完工
-          </button>
-        </div>
+        <article
+          v-for="(w, i) in rows"
+          :key="i"
+          class="dc-card dc-card--white wo-card"
+          role="button"
+          tabindex="0"
+          @click="openMerchantMap(w)"
+        >
+          <div class="wo-head">
+            <div class="wo-title-block">
+              <span class="wo-k">工单号</span>
+              <span class="wo-v wo-v--no">{{ w.workOrderNo }}</span>
+            </div>
+            <span :class="orderWorkStatusPillClass(w.statusCode)">{{ w.status }}</span>
+          </div>
+
+          <div class="wo-field">
+            <span class="wo-k">订单号</span>
+            <span class="wo-v wo-v--order">{{ w.orderNo || "—" }}</span>
+          </div>
+          <div class="wo-field">
+            <span class="wo-k">店铺</span>
+            <span class="wo-v wo-v--merchant">{{ w.merchantName || "—" }}</span>
+          </div>
+          <div v-if="w.workOrderTypeCode === '4' && w.toMerchantName" class="wo-field">
+            <span class="wo-k">目标门店</span>
+            <span class="wo-v">{{ w.toMerchantName }}<template v-if="w.toMerchantId"> #{{ w.toMerchantId }}</template></span>
+          </div>
+          <div class="wo-field">
+            <span class="wo-k">工单类型</span>
+            <span class="wo-v wo-v--type">{{ w.workOrderType }}</span>
+          </div>
+          <div class="wo-field">
+            <span class="wo-k">预计用时</span>
+            <span class="wo-v">{{ formatHoursNum(w.estimatedWorkHours) }}</span>
+          </div>
+          <div class="wo-field">
+            <span class="wo-k">开始时间</span>
+            <span class="wo-v wo-v--time">{{ w.workStartTime || "—" }}</span>
+          </div>
+          <div class="wo-field">
+            <span class="wo-k">结束时间</span>
+            <span class="wo-v wo-v--time">{{ w.workEndTime || "—" }}</span>
+          </div>
+          <div class="wo-field">
+            <span class="wo-k">实际用时</span>
+            <span class="wo-v wo-v--accent">{{ formatHoursNum(w.actualWorkHours) }}</span>
+          </div>
+          <div class="wo-field">
+            <span class="wo-k">接单人</span>
+            <span class="wo-v wo-v--person">{{ w.receiveSalesmanName || "—" }}</span>
+          </div>
+          <div class="wo-field wo-field--sub">
+            <span class="wo-k">创建时间</span>
+            <span class="wo-v wo-v--sub">{{ w.workOrderTime }}</span>
+          </div>
+
+          <div class="actions" @click.stop>
+            <button v-if="showReceive(w)" type="button" class="btn-sm" @click="onReceive(w.workOrderNo)">抢单</button>
+            <button v-if="showAssign(w)" type="button" class="btn-sm secondary" @click="openAssignDialog(w)">指派</button>
+            <button
+              v-if="showFinish(w) && roleCode === 'sales'"
+              type="button"
+              class="btn-sm ok"
+              @click="onSalesFinishClick(w)"
+            >
+              结单
+            </button>
+            <button v-if="showFinish(w) && roleCode !== 'sales'" type="button" class="btn-sm ok" @click="onAgentFinishClick(w)">
+              完工
+            </button>
+          </div>
         </article>
       </div>
     </div>
@@ -441,6 +506,103 @@ onMounted(load);
   font-size: 16px;
   font-weight: 600;
 }
+.wo-hint {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #475569;
+  background: #f1f5f9;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+.wo-hint strong {
+  color: #0f172a;
+  font-weight: 600;
+}
+.wo-card {
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.wo-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 2px 12px rgba(31, 109, 255, 0.08);
+}
+.wo-card:focus {
+  outline: 2px solid #1f6dff;
+  outline-offset: 2px;
+}
+.wo-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.wo-field {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 8px 10px;
+  align-items: baseline;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.wo-field--sub {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+}
+.wo-k {
+  color: #64748b;
+  font-weight: 500;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+.wo-v {
+  color: #0f172a;
+  font-weight: 500;
+  word-break: break-word;
+  line-height: 1.45;
+}
+.wo-v--no {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: -0.02em;
+}
+.wo-v--order {
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  color: #1e40af;
+}
+.wo-v--merchant {
+  font-weight: 600;
+  font-size: 13px;
+  color: #0f172a;
+}
+.wo-v--type {
+  font-weight: 600;
+  color: #0369a1;
+}
+.wo-v--time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  color: #334155;
+}
+.wo-v--accent {
+  font-weight: 700;
+  color: #0d9488;
+}
+.wo-v--person {
+  font-weight: 600;
+  color: #7c3aed;
+}
+.wo-v--sub {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 400;
+}
 .err {
   color: #b91c1c;
   font-size: 13px;
@@ -467,9 +629,8 @@ onMounted(load);
 .wo-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
-  font-weight: 600;
 }
 .wo-no {
   min-width: 0;
@@ -480,7 +641,9 @@ onMounted(load);
   font-weight: 500;
 }
 .actions {
-  margin-top: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;

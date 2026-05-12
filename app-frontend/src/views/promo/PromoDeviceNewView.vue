@@ -39,12 +39,16 @@ async function submit() {
     if (isMain.value) {
       body.agentId = Number(agentId.value);
     }
-    await requestJson("/app-api/biz/device-events", {
+    const res = await requestJson("/app-api/biz/device-events", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     });
-    window.alert("已登记入库设备并写入设备台账");
+    if (res && res.auditId != null && res.pendingReview === true) {
+      window.alert(`已提交审核 #${res.auditId}，待代理确认后设备将入库`);
+    } else {
+      window.alert("已登记入库设备并写入设备台账");
+    }
     deviceNo.value = "";
     remark.value = "";
   } catch (e) {

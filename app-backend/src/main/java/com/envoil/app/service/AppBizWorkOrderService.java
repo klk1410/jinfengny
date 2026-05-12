@@ -54,8 +54,10 @@ public class AppBizWorkOrderService {
         OpenidBizScope scope = scopeService.resolve(openid);
         StringBuilder sql = new StringBuilder()
                 .append("SELECT w.work_order_no, w.order_no, w.work_order_time, w.work_order_type, w.status, ")
-                .append("w.agent_id, w.merchant_id, w.receive_salesman_id, w.accept_deadline, m.merchant_name, ")
-                .append("rs.salesman_name AS receive_salesman_name, ord.to_merchant_id, tm.merchant_name AS to_merchant_name ")
+                .append("w.agent_id, w.merchant_id, w.receive_salesman_id, w.accept_deadline, w.work_start_time, w.work_end_time, ")
+                .append("m.merchant_name, m.longitude AS merchant_lng, m.latitude AS merchant_lat, ")
+                .append("ord.estimated_work_hours, ord.to_merchant_id, ")
+                .append("rs.salesman_name AS receive_salesman_name, tm.merchant_name AS to_merchant_name ")
                 .append("FROM biz_env_work_order w ")
                 .append("JOIN biz_env_merchant m ON m.merchant_id = w.merchant_id AND m.del_flag = '0' ")
                 .append("LEFT JOIN biz_env_order ord ON ord.order_no = w.order_no AND ord.del_flag = '0' ")
@@ -78,8 +80,24 @@ public class AppBizWorkOrderService {
             row.put("receiveSalesmanId", rs.getObject("receive_salesman_id") == null ? null : rs.getLong("receive_salesman_id"));
             row.put("receiveSalesmanName", rs.getString("receive_salesman_name"));
             row.put("workOrderTime", formatTs(rs.getTimestamp("work_order_time")));
+            BigDecimal estH = rs.getBigDecimal("estimated_work_hours");
+            row.put("estimatedWorkHours", estH == null ? null : estH.doubleValue());
+            BigDecimal mlng = rs.getBigDecimal("merchant_lng");
+            BigDecimal mlat = rs.getBigDecimal("merchant_lat");
+            row.put("longitude", mlng == null ? null : mlng.doubleValue());
+            row.put("latitude", mlat == null ? null : mlat.doubleValue());
+            row.put("workStartTime", formatTs(rs.getTimestamp("work_start_time")));
+            row.put("workEndTime", formatTs(rs.getTimestamp("work_end_time")));
+            Timestamp wst = rs.getTimestamp("work_start_time");
+            Timestamp wet = rs.getTimestamp("work_end_time");
+            Double actualH = null;
+            if (wst != null && wet != null && !wet.before(wst)) {
+                actualH = BigDecimal.valueOf(wet.getTime() - wst.getTime())
+                        .divide(BigDecimal.valueOf(3600000), 2, RoundingMode.HALF_UP)
+                        .doubleValue();
+            }
+            row.put("actualWorkHours", actualH);
             Timestamp adl = rs.getTimestamp("accept_deadline");
-            row.put("acceptDeadline", formatTs(adl));
             long now = System.currentTimeMillis();
             boolean expired = adl != null && now > adl.getTime();
             row.put("grabExpired", expired);
