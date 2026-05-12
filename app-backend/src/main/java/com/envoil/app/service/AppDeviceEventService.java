@@ -232,8 +232,18 @@ public class AppDeviceEventService {
         if (!"1".equals(st)) {
             throw new IllegalArgumentException("仅「在店」状态的设备可登记移除");
         }
+        long deviceId = ((Number) dev.get("deviceId")).longValue();
+        int u = jdbc.update(
+                "UPDATE biz_env_device SET merchant_id = NULL, device_status = '0' WHERE device_id = ? AND agent_id = ? AND del_flag = '0' "
+                        + "AND merchant_id IS NOT NULL AND device_status = '1'",
+                deviceId,
+                agentId);
+        if (u == 0) {
+            throw new IllegalArgumentException("移除失败，设备状态或绑定已变更");
+        }
         String r = remark == null ? "" : remark.trim();
-        insertDeviceLog(agentId, dm, deviceNo, "R", r.isEmpty() ? null : r, openid);
+        String logRemark = r.isEmpty() ? "【移除回库】" : "【移除回库】 " + r;
+        insertDeviceLog(agentId, dm, deviceNo, "R", logRemark, openid);
     }
 
     private void handleScrap(long agentId, String deviceNo, String remark, String openid) {
