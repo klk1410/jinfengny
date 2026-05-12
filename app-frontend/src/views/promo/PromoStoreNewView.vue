@@ -2,6 +2,7 @@
 import { computed, inject, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { requestJson } from "../../api.js";
+import PfSelect from "../../components/PfSelect.vue";
 import "./promo-form.css";
 
 const shell = inject("appShell");
@@ -27,6 +28,15 @@ const agentId = ref("1");
 
 const industryOptions = ["餐饮", "酒店", "工厂", "学校", "企事业单位", "其他"];
 const salesmen = ref([]);
+
+const industrySelectOptions = computed(() => industryOptions.map((x) => ({ value: x, label: x })));
+const salesmanSelectOptions = computed(() => [
+  { value: "", label: "选择业务员" },
+  ...salesmen.value.map((s) => ({
+    value: String(s.salesmanId),
+    label: `${s.salesmanName} · ${s.phone || "—"}`
+  }))
+]);
 
 const roleCode = computed(() => shell.portal?.roleCode ?? "");
 const isMain = computed(() => roleCode.value === "main");
@@ -163,10 +173,7 @@ onMounted(() => {
       <div class="pf-row">
         <div class="pf-label req">所属行业</div>
         <div class="pf-field-wrap pf-field-wrap--select">
-          <select v-model="industryType" class="pf-field">
-            <option disabled value="">选择所属行业</option>
-            <option v-for="o in industryOptions" :key="o" :value="o">{{ o }}</option>
-          </select>
+          <PfSelect v-model="industryType" :options="industrySelectOptions" placeholder="选择所属行业" />
         </div>
       </div>
 
@@ -223,12 +230,7 @@ onMounted(() => {
       <div class="pf-row">
         <div class="pf-label">业务员</div>
         <div class="pf-field-wrap pf-field-wrap--select">
-          <select v-model="salesmanId" class="pf-field">
-            <option value="">选择业务员</option>
-            <option v-for="s in salesmen" :key="s.salesmanId" :value="String(s.salesmanId)">
-              {{ s.salesmanName }} · {{ s.phone || "—" }}
-            </option>
-          </select>
+          <PfSelect v-model="salesmanId" :options="salesmanSelectOptions" placeholder="选择业务员" />
         </div>
       </div>
 

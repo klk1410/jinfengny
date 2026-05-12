@@ -1,6 +1,7 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../../api.js";
+import PfSelect from "../../components/PfSelect.vue";
 import "./promo-form.css";
 import { prepaidDirectionPillClass } from "../../utils/statusDisplay.js";
 
@@ -18,6 +19,19 @@ const agentId = ref("1");
 const roleCode = computed(() => shell.portal?.roleCode ?? "");
 const isMain = computed(() => roleCode.value === "main");
 const canCreate = computed(() => roleCode.value === "main" || roleCode.value === "agent");
+
+const merchantSelectOptions = computed(() => [
+  { value: "", label: "选择门店（可选）" },
+  ...(merchants.value || []).map((m) => ({
+    value: String(m.merchantId),
+    label: m.merchantName
+  }))
+]);
+
+const directionSelectOptions = [
+  { value: "1", label: "入账" },
+  { value: "2", label: "支出" }
+];
 
 async function loadMerchants() {
   const oid = encodeURIComponent(shell.loginOpenid);
@@ -98,12 +112,7 @@ onMounted(() => {
       <div class="pf-row">
         <div class="pf-label">关联门店</div>
         <div class="pf-field-wrap pf-field-wrap--select">
-          <select v-model="merchantId" class="pf-field">
-            <option value="">选择门店（可选）</option>
-            <option v-for="m in merchants" :key="m.merchantId" :value="String(m.merchantId)">
-              {{ m.merchantName }}
-            </option>
-          </select>
+          <PfSelect v-model="merchantId" :options="merchantSelectOptions" placeholder="选择门店（可选）" />
         </div>
       </div>
 
@@ -124,10 +133,7 @@ onMounted(() => {
       <div class="pf-row">
         <div class="pf-label req">方向</div>
         <div class="pf-field-wrap pf-field-wrap--select">
-          <select v-model="direction" class="pf-field">
-            <option value="1">入账</option>
-            <option value="2">支出</option>
-          </select>
+          <PfSelect v-model="direction" :options="directionSelectOptions" placeholder="方向" />
         </div>
       </div>
 

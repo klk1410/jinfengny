@@ -2,6 +2,7 @@
 import { computed, onMounted, provide, reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { requestJson } from "../api.js";
+import PfSelect from "../components/PfSelect.vue";
 
 const router = useRouter();
 const route = useRoute();
@@ -14,6 +15,12 @@ const TEST_OPENID_USERS = [
 ];
 
 const loginOpenid = ref("merchant-openid-001");
+const testUserOptions = computed(() =>
+  TEST_OPENID_USERS.map((u) => ({
+    value: u.openid,
+    label: `${u.label}（${u.openid}）`
+  }))
+);
 const portal = ref(null);
 const loadError = ref("");
 const loading = ref(false);
@@ -106,11 +113,14 @@ onMounted(() => {
 
       <div class="dev-strip">
         <span class="dev-label">测试用户</span>
-        <select v-model="loginOpenid" class="dev-select" :disabled="loading" @change="refreshPortal">
-          <option v-for="u in TEST_OPENID_USERS" :key="u.openid" :value="u.openid">
-            {{ u.label }}（{{ u.openid }}）
-          </option>
-        </select>
+        <PfSelect
+          v-model="loginOpenid"
+          dense
+          :options="testUserOptions"
+          :disabled="loading"
+          placeholder="选择测试账号"
+          @change="refreshPortal"
+        />
         <button type="button" class="dev-btn" :disabled="loading" @click="refreshPortal">
           {{ loading ? "…" : "刷新" }}
         </button>
@@ -237,44 +247,9 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-.dev-select {
+.dev-strip :deep(.pf-select) {
   flex: 1;
   min-width: 0;
-  max-width: 100%;
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  cursor: pointer;
-  border: 1px solid #bfdbfe;
-  border-radius: 10px;
-  padding: 8px 34px 8px 10px;
-  font-size: 12px;
-  line-height: 1.4;
-  background-color: #f8fafc;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%231f6dff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  background-size: 16px;
-  color: #0f172a;
-  outline: none;
-  box-sizing: border-box;
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    background-color 0.15s ease;
-}
-
-.dev-select:focus {
-  border-color: #3b82f6;
-  background-color: #fff;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
-}
-
-.dev-select:disabled {
-  opacity: 0.72;
-  cursor: wait;
-  background-color: #f1f5f9;
-  border-color: #e2e8f0;
 }
 
 .dev-btn {
