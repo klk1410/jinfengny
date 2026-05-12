@@ -227,7 +227,8 @@ onMounted(load);
       </p>
       <p v-if="readOnly" class="pf-muted" style="margin-bottom: 10px">当前账号仅可查看。</p>
 
-      <div class="pf-card">
+      <div class="dc-stack">
+        <article class="dc-card dc-card--white">
         <div class="pf-row">
           <div class="pf-label">店铺 ID</div>
           <div class="pf-field-wrap">
@@ -240,7 +241,9 @@ onMounted(load);
             <span class="pf-muted">{{ detail.agentName }}（#{{ detail.agentId }}）</span>
           </div>
         </div>
+        </article>
 
+        <article class="dc-card dc-card--white">
         <div class="pf-row">
           <div class="pf-label req">所属行业</div>
           <div class="pf-field-wrap">
@@ -272,7 +275,9 @@ onMounted(load);
             <input v-model="contactPhone" class="pf-field" type="tel" :disabled="readOnly" />
           </div>
         </div>
+        </article>
 
+        <article class="dc-card dc-card--white">
         <div class="pf-row">
           <div class="pf-label req">经纬度</div>
           <div class="pf-field-wrap pf-geo">
@@ -301,7 +306,9 @@ onMounted(load);
             <input v-model="addressDetail" class="pf-field" type="text" :disabled="readOnly" />
           </div>
         </div>
+        </article>
 
+        <article class="dc-card dc-card--white">
         <div class="pf-row">
           <div class="pf-label">单价(元/桶)</div>
           <div class="pf-field-wrap">
@@ -357,7 +364,9 @@ onMounted(load);
             <img v-if="imagePreview" :src="imagePreview" alt="" class="pf-thumb" />
           </label>
         </div>
+        </article>
 
+        <article class="dc-card dc-card--white">
         <div class="pf-row pf-row--stack">
           <div class="pf-label">经营信息</div>
           <div class="pf-field-wrap biz-info">
@@ -375,15 +384,18 @@ onMounted(load);
             </div>
           </div>
         </div>
+        </article>
       </div>
 
-      <div v-if="canSubmitAudit" class="pf-card" style="margin-top: 12px">
+      <div v-if="canSubmitAudit" class="dc-stack" style="margin-top: 12px">
+        <article class="dc-card dc-card--white">
         <div class="pf-row">
           <div class="pf-label">审核说明</div>
           <div class="pf-field-wrap">
             <input v-model="submitRemark" class="pf-field" type="text" placeholder="给代理/主端的备注（选填）" />
           </div>
         </div>
+        </article>
       </div>
 
       <div class="pf-footer">

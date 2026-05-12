@@ -134,12 +134,19 @@ onMounted(() => {
             <button
               v-if="(roleCode === 'main' || roleCode === 'agent') && o.statusCode === '0'"
               type="button"
-              class="link"
+              class="btn-act btn-act--primary"
               @click="onConfirm(o.orderNo)"
             >
               确认
             </button>
-            <button v-if="canCancelRow(o)" type="button" class="link danger" @click="onCancel(o.orderNo)">取消</button>
+            <button
+              v-if="canCancelRow(o)"
+              type="button"
+              class="btn-act btn-act--danger"
+              @click="onCancel(o.orderNo)"
+            >
+              取消
+            </button>
           </div>
         </article>
       </div>
@@ -246,20 +253,33 @@ onMounted(() => {
   color: #0f172a;
 }
 .order-card__actions {
-  margin-top: 8px;
+  margin-top: 10px;
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
 }
-.link {
-  border: none;
-  background: none;
-  color: #1f6dff;
-  cursor: pointer;
-  padding: 0;
+.btn-act {
+  border-radius: 6px;
+  padding: 6px 14px;
   font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
 }
-.link.danger {
+.btn-act--primary {
+  border: none;
+  background: #1f6dff;
+  color: #fff;
+}
+.btn-act--primary:active {
+  background: #1858cc;
+}
+.btn-act--danger {
+  background: #fff;
   color: #b91c1c;
+  border-color: #fecaca;
+}
+.btn-act--danger:active {
+  background: #fef2f2;
 }
 </style>

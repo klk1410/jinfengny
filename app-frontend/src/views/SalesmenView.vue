@@ -34,13 +34,20 @@ onMounted(load);
     <div class="card">
       <div v-if="!rows.length" class="muted">暂无数据</div>
       <div v-else class="dc-stack">
-        <article v-for="(sm, i) in rows" :key="i" class="dc-card dc-card--white">
-          <div class="row-head">
-            <span class="line strong">#{{ sm.salesmanId }} {{ sm.salesmanName }}</span>
-            <span :class="entityOnOffPillClass(sm.statusCode)">{{ sm.status }}</span>
-          </div>
-          <div class="line muted">{{ sm.phone }} · 代理 #{{ sm.agentId }}</div>
-        </article>
+        <router-link
+          v-for="sm in rows"
+          :key="sm.salesmanId"
+          class="salesman-card-link"
+          :to="{ name: 'salesman-detail', params: { salesmanId: String(sm.salesmanId) } }"
+        >
+          <article class="dc-card dc-card--white">
+            <div class="row-head">
+              <span class="line strong">#{{ sm.salesmanId }} {{ sm.salesmanName }}</span>
+              <span :class="entityOnOffPillClass(sm.statusCode)">{{ sm.status }}</span>
+            </div>
+            <div class="line muted">{{ sm.phone }} · 代理 #{{ sm.agentId }}</div>
+          </article>
+        </router-link>
       </div>
     </div>
   </div>
@@ -91,5 +98,10 @@ onMounted(load);
   justify-content: space-between;
   align-items: flex-start;
   gap: 10px;
+}
+.salesman-card-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
 }
 </style>

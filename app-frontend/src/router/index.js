@@ -39,6 +39,12 @@ export const router = createRouter({
           meta: { headerTitle: "新增业务员" },
           component: () => import("../views/SalesmanNewView.vue")
         },
+        {
+          path: "salesmen/:salesmanId",
+          name: "salesman-detail",
+          meta: { headerTitle: "业务员详情" },
+          component: () => import("../views/SalesmanDetailView.vue")
+        },
         { path: "devices", name: "devices", meta: { headerTitle: "设备" }, component: () => import("../views/DevicesView.vue") },
         { path: "accessories", name: "accessories", meta: { headerTitle: "配件管理" }, component: () => import("../views/AccessoriesView.vue") },
         {

@@ -46,14 +46,14 @@ onMounted(load);
       <button type="button" class="pf-tool pf-tool--ghost" @click="load">刷新</button>
     </div>
 
-    <div class="pf-card">
+    <div class="store-list-wrap">
       <div v-if="!rows.length" class="pf-muted" style="padding: 12px">暂无数据</div>
       <div v-else class="dc-stack">
         <button
           v-for="(m, i) in rows"
           :key="i"
           type="button"
-          class="dc-card dc-card--white pf-item--link"
+          class="dc-card dc-card--white store-card-hit"
           @click="router.push({ name: 'promo-store-detail', params: { merchantId: String(m.merchantId) } })"
         >
           <div class="store-head">
@@ -70,13 +70,16 @@ onMounted(load);
 </template>
 
 <style scoped>
-.pf-item--link {
-  width: 100%;
+.store-list-wrap {
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  box-sizing: border-box;
+}
+.store-card-hit {
   text-align: left;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  display: block;
 }
 .store-head {
   display: flex;

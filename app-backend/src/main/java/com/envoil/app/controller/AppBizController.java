@@ -106,6 +106,11 @@ public class AppBizController {
         return ApiResponse.ok(bizDataService.listSalesmen(openid));
     }
 
+    @GetMapping("/salesmen/portal-account")
+    public ApiResponse<?> salesmanPortalAccount(@RequestParam String openid, @RequestParam long salesmanId) {
+        return ApiResponse.ok(bizDataService.getSalesmanPortalAccount(openid, salesmanId));
+    }
+
     @PostMapping("/salesmen")
     public ApiResponse<?> createSalesman(@Validated @RequestBody SalesmanCreateRequest req) {
         return ApiResponse.ok(bizDataService.createSalesman(req));

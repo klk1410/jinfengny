@@ -122,6 +122,7 @@ async function submitAssign() {
   }
 }
 
+/** 维护、转移商家：打开结单弹窗；其余类型不应调用 */
 async function openFinishDialog(w) {
   err.value = "";
   finishRow.value = w;
@@ -152,6 +153,43 @@ async function openFinishDialog(w) {
   }
 }
 
+/** 业务员：非维护、非转移商家 → 直接结单，不扣配件 */
+async function finishSalesQuick(w) {
+  err.value = "";
+  if (!window.confirm("确认结单？（非维护工单不登记配件消耗）")) {
+    return;
+  }
+  try {
+    const oid = shell.loginOpenid;
+    await requestJson(`/app-api/work-order/${encodeURIComponent(w.workOrderNo)}/finish?openid=${encodeURIComponent(oid)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessoryConsumes: [] })
+    });
+    await load();
+  } catch (e) {
+    err.value = e.message || String(e);
+  }
+}
+
+function onSalesFinishClick(w) {
+  const t = w.workOrderTypeCode;
+  if (t === "2" || t === "4") {
+    openFinishDialog(w);
+  } else {
+    finishSalesQuick(w);
+  }
+}
+
+function onAgentFinishClick(w) {
+  const t = w.workOrderTypeCode;
+  if (t === "2") {
+    openFinishDialog(w);
+  } else {
+    onFinishAgentMain(w.workOrderNo);
+  }
+}
+
 function closeFinishDialog() {
   finishOpen.value = false;
   finishNo.value = "";
@@ -177,7 +215,11 @@ async function submitFinish() {
       return;
     }
   }
-  if (roleCode.value === "sales") {
+  if (
+    roleCode.value === "sales" &&
+    finishRow.value &&
+    (finishRow.value.workOrderTypeCode === "2" || finishRow.value.workOrderTypeCode === "4")
+  ) {
     for (const row of finishLines.value) {
       const q = Number(row.qty);
       if (Number.isFinite(q) && q > row.balance + 1e-6) {
@@ -222,7 +264,7 @@ async function onFinishAgentMain(no) {
       err.value = "设备编号不能为空";
       return;
     }
-  } else if (!window.confirm("确认完工？（未填写配件消耗，将不扣减配件库）")) {
+  } else if (!window.confirm("确认完工？（非维护工单不登记配件消耗）")) {
     return;
   }
   err.value = "";
@@ -308,11 +350,11 @@ onMounted(load);
             v-if="showFinish(w) && roleCode === 'sales'"
             type="button"
             class="btn-sm ok"
-            @click="openFinishDialog(w)"
+            @click="onSalesFinishClick(w)"
           >
             结单
           </button>
-          <button v-if="showFinish(w) && roleCode !== 'sales'" type="button" class="btn-sm ok" @click="onFinishAgentMain(w.workOrderNo)">
+          <button v-if="showFinish(w) && roleCode !== 'sales'" type="button" class="btn-sm ok" @click="onAgentFinishClick(w)">
             完工
           </button>
         </div>
@@ -360,18 +402,22 @@ onMounted(load);
     <div v-if="finishOpen" class="mask" @click.self="closeFinishDialog">
       <div class="dialog">
         <h3 class="dlg-title">
-          {{ finishRow && finishRow.workOrderTypeCode === "4" ? "结单 · 转移商家" : "结单 · 配件消耗" }}
+          <template v-if="finishRow && finishRow.workOrderTypeCode === '4'">结单 · 转移商家</template>
+          <template v-else-if="finishRow && finishRow.workOrderTypeCode === '2'">结单 · 维护 · 配件消耗</template>
+          <template v-else>结单</template>
         </h3>
         <p v-if="finishRow && finishRow.workOrderTypeCode === '4'" class="dlg-hint">
           请填写从「{{ finishRow.merchantName }}」转至「{{ finishRow.toMerchantName || "目标门店" }}」的设备编号；可选填配件消耗。
         </p>
-        <p v-else class="dlg-hint">请填写本次工单消耗的配件数量（可为 0）；提交后从本代理配件库存自动扣减。</p>
+        <p v-else-if="finishRow && finishRow.workOrderTypeCode === '2'" class="dlg-hint">
+          维护工单请填写本次消耗的配件数量（可为 0）；提交后从本代理配件库存扣减。
+        </p>
         <div v-if="finishRow && finishRow.workOrderTypeCode === '4'" class="dlg-device">
           <label class="dlg-lab">设备编号</label>
           <input v-model="finishDeviceNo" class="dlg-inp-full" type="text" placeholder="必填" />
         </div>
         <p v-if="finishBusy" class="muted">加载中…</p>
-        <div v-else class="dlg-body">
+        <div v-else-if="finishRow && (finishRow.workOrderTypeCode === '2' || finishRow.workOrderTypeCode === '4')" class="dlg-body">
           <div v-for="(row, j) in finishLines" :key="j" class="dlg-row">
             <div class="dlg-name">
               {{ row.typeName }}

@@ -223,6 +223,7 @@ public class AppBizWorkOrderService {
         }
         long agentIdWo = ((Number) wo.get("agent_id")).longValue();
         List<AccessoryConsumeLine> consumeLines = req == null ? null : req.getAccessoryConsumes();
+        String woType = wo.get("work_order_type") == null ? "" : String.valueOf(wo.get("work_order_type"));
         String orderNoEarly = (String) wo.get("order_no");
         String orderTypeEarly = null;
         if (orderNoEarly != null && !orderNoEarly.isEmpty()) {
@@ -237,8 +238,11 @@ public class AppBizWorkOrderService {
                 if (dn0.isEmpty()) {
                     throw new IllegalArgumentException("转移商家工单完工请填写设备编号");
                 }
-            } else if (consumeLines == null) {
-                throw new IllegalArgumentException("结单请提交 JSON，例如 {\"accessoryConsumes\":[]} 或 [{\"typeId\":1,\"qty\":2}]");
+            } else if ("2".equals(woType)) {
+                // 仅维护类工单：业务员结单须携带 accessoryConsumes 字段（可为空数组，表示不扣配件）
+                if (consumeLines == null) {
+                    throw new IllegalArgumentException("维护工单结单请提交配件消耗 JSON，例如 {\"accessoryConsumes\":[]} 或 [{\"typeId\":1,\"qty\":2}]");
+                }
             }
         }
         if (r == '3') {

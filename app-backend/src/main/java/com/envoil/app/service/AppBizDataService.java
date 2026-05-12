@@ -19,9 +19,11 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 public class AppBizDataService {
@@ -404,6 +406,126 @@ public class AppBizDataService {
             row.put("statusCode", rs.getString("status"));
             return row;
         });
+    }
+
+    /**
+     * 主端/代理等在有权限时查看某业务员的小程序账户概要（profile + 共享账号列表）。
+     * 通过 env_openid_biz_scope 解析该业务员绑定的 openid；优先排除「仅作为被共享方」的 openid。
+     */
+    public Map<String, Object> getSalesmanPortalAccount(String viewerOpenid, long salesmanId) {
+        OpenidBizScope viewer = scopeService.resolve(viewerOpenid);
+        assertCanViewSalesmanPortal(viewer, salesmanId);
+
+        Map<String, Object> meta = jdbcTemplate.query(
+                "SELECT salesman_id, salesman_name, phone, agent_id, status FROM biz_env_salesman WHERE salesman_id = ? AND del_flag = '0'",
+                rs -> {
+                    if (!rs.next()) {
+                        return null;
+                    }
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("salesmanId", rs.getLong("salesman_id"));
+                    m.put("salesmanName", rs.getString("salesman_name"));
+                    m.put("phone", rs.getString("phone"));
+                    m.put("agentId", rs.getLong("agent_id"));
+                    m.put("status", labelSalesmanStatus(rs.getString("status")));
+                    m.put("statusCode", rs.getString("status"));
+                    return m;
+                },
+                salesmanId);
+        if (meta == null) {
+            throw new IllegalArgumentException("业务员不存在");
+        }
+
+        String portalOpenid = resolveOwnerOpenidForSalesman(salesmanId);
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("salesman", meta);
+        out.put("portalOpenid", portalOpenid);
+        if (portalOpenid != null) {
+            out.put("profile", accountProfile(portalOpenid));
+            out.put("shares", listAccountShares(portalOpenid));
+        } else {
+            out.put("profile", null);
+            out.put("shares", Collections.emptyList());
+            out.put(
+                    "accountNote",
+                    "该业务员尚未绑定小程序登录，暂无门户账户与共享账号数据（或仅在 env_openid_biz_scope 中未登记）。");
+        }
+        return out;
+    }
+
+    private void assertCanViewSalesmanPortal(OpenidBizScope s, long salesmanId) {
+        char r = s.getUserRole();
+        Long smAgentId = jdbcTemplate.query(
+                "SELECT agent_id FROM biz_env_salesman WHERE salesman_id = ? AND del_flag = '0'",
+                rs -> {
+                    if (!rs.next()) {
+                        return null;
+                    }
+                    return rs.getLong("agent_id");
+                },
+                salesmanId);
+        if (smAgentId == null) {
+            throw new IllegalArgumentException("业务员不存在");
+        }
+        if (r == '1') {
+            return;
+        }
+        if (r == '2') {
+            if (s.getAgentId() == null || !Objects.equals(s.getAgentId(), smAgentId)) {
+                throw new IllegalArgumentException("无权查看该业务员");
+            }
+            return;
+        }
+        if (r == '3') {
+            if (s.getAgentId() == null
+                    || !Objects.equals(s.getAgentId(), smAgentId)
+                    || !Objects.equals(s.getSalesmanId(), salesmanId)) {
+                throw new IllegalArgumentException("无权查看该业务员");
+            }
+            return;
+        }
+        if (r == '4') {
+            Long linkedSid = null;
+            if (s.getMerchantId() != null) {
+                linkedSid = jdbcTemplate.query(
+                        "SELECT salesman_id FROM biz_env_merchant WHERE merchant_id = ? AND del_flag = '0'",
+                        rs -> {
+                            if (!rs.next()) {
+                                return null;
+                            }
+                            long v = rs.getLong("salesman_id");
+                            return rs.wasNull() ? null : v;
+                        },
+                        s.getMerchantId());
+            }
+            if (linkedSid == null || linkedSid != salesmanId) {
+                throw new IllegalArgumentException("无权查看该业务员");
+            }
+            return;
+        }
+        throw new IllegalArgumentException("无权查看该业务员");
+    }
+
+    /**
+     * 解析用于门户资料、共享列表的主 openid：优先排除仅作为 shared_openid 出现的账号。
+     */
+    private String resolveOwnerOpenidForSalesman(long salesmanId) {
+        List<String> primary = jdbcTemplate.query(
+                "SELECT o.openid FROM env_openid_biz_scope o "
+                        + "WHERE o.salesman_id = ? AND o.user_role = '3' "
+                        + "AND o.openid NOT IN ("
+                        + "SELECT s.shared_openid FROM biz_env_account_share s WHERE s.del_flag = '0' AND s.shared_openid IS NOT NULL"
+                        + ") ORDER BY o.openid ASC LIMIT 1",
+                (rs, i) -> rs.getString("openid"),
+                salesmanId);
+        if (!primary.isEmpty()) {
+            return primary.get(0);
+        }
+        List<String> any = jdbcTemplate.query(
+                "SELECT openid FROM env_openid_biz_scope WHERE salesman_id = ? AND user_role = '3' ORDER BY openid ASC LIMIT 1",
+                (rs, i) -> rs.getString("openid"),
+                salesmanId);
+        return any.isEmpty() ? null : any.get(0);
     }
 
     /**
