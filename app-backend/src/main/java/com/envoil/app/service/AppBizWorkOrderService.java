@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
@@ -52,7 +54,16 @@ public class AppBizWorkOrderService {
 
     public List<Map<String, Object>> listWorkOrders(String openid) {
         OpenidBizScope scope = scopeService.resolve(openid);
-        StringBuilder sql = new StringBuilder()
+        StringBuilder sql = baseWorkOrderListSql();
+        List<Object> args = new ArrayList<>();
+        appendWorkOrderScope(sql, args, scope);
+        appendSalesHideCompletedForList(sql, scope);
+        sql.append(" ORDER BY w.work_order_time DESC, w.work_order_id DESC");
+        return jdbcTemplate.query(sql.toString(), args.toArray(), (rs, rowNum) -> mapWorkOrderRow(rs));
+    }
+
+    private static StringBuilder baseWorkOrderListSql() {
+        return new StringBuilder()
                 .append("SELECT w.work_order_no, w.order_no, w.work_order_time, w.work_order_type, w.status, ")
                 .append("w.agent_id, w.merchant_id, w.receive_salesman_id, w.accept_deadline, w.work_start_time, w.work_end_time, ")
                 .append("m.merchant_name, m.longitude AS merchant_lng, m.latitude AS merchant_lat, ")
@@ -64,49 +75,54 @@ public class AppBizWorkOrderService {
                 .append("LEFT JOIN biz_env_merchant tm ON tm.merchant_id = ord.to_merchant_id AND tm.del_flag = '0' ")
                 .append("LEFT JOIN biz_env_salesman rs ON rs.salesman_id = w.receive_salesman_id AND rs.del_flag = '0' ")
                 .append("WHERE w.del_flag = '0' ");
-        List<Object> args = new ArrayList<>();
-        appendWorkOrderScope(sql, args, scope);
-        sql.append(" ORDER BY w.work_order_time DESC, w.work_order_id DESC");
-        return jdbcTemplate.query(sql.toString(), args.toArray(), (rs, rowNum) -> {
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("workOrderNo", rs.getString("work_order_no"));
-            row.put("orderNo", rs.getString("order_no"));
-            row.put("merchantName", rs.getString("merchant_name"));
-            row.put("workOrderTypeCode", rs.getString("work_order_type"));
-            row.put("workOrderType", labelWorkType(rs.getString("work_order_type")));
-            row.put("status", labelWorkStatus(rs.getString("status")));
-            row.put("statusCode", rs.getString("status"));
-            row.put("agentId", rs.getLong("agent_id"));
-            row.put("receiveSalesmanId", rs.getObject("receive_salesman_id") == null ? null : rs.getLong("receive_salesman_id"));
-            row.put("receiveSalesmanName", rs.getString("receive_salesman_name"));
-            row.put("workOrderTime", formatTs(rs.getTimestamp("work_order_time")));
-            BigDecimal estH = rs.getBigDecimal("estimated_work_hours");
-            row.put("estimatedWorkHours", estH == null ? null : estH.doubleValue());
-            BigDecimal mlng = rs.getBigDecimal("merchant_lng");
-            BigDecimal mlat = rs.getBigDecimal("merchant_lat");
-            row.put("longitude", mlng == null ? null : mlng.doubleValue());
-            row.put("latitude", mlat == null ? null : mlat.doubleValue());
-            row.put("workStartTime", formatTs(rs.getTimestamp("work_start_time")));
-            row.put("workEndTime", formatTs(rs.getTimestamp("work_end_time")));
-            Timestamp wst = rs.getTimestamp("work_start_time");
-            Timestamp wet = rs.getTimestamp("work_end_time");
-            Double actualH = null;
-            if (wst != null && wet != null && !wet.before(wst)) {
-                actualH = BigDecimal.valueOf(wet.getTime() - wst.getTime())
-                        .divide(BigDecimal.valueOf(3600000), 2, RoundingMode.HALF_UP)
-                        .doubleValue();
-            }
-            row.put("actualWorkHours", actualH);
-            Timestamp adl = rs.getTimestamp("accept_deadline");
-            long now = System.currentTimeMillis();
-            boolean expired = adl != null && now > adl.getTime();
-            row.put("grabExpired", expired);
-            row.put("canForceAssign", expired);
-            row.put("toMerchantId", rs.getObject("to_merchant_id") == null ? null : rs.getLong("to_merchant_id"));
-            row.put("toMerchantName", rs.getString("to_merchant_name"));
-            row.put("orderAmount", rs.getBigDecimal("order_amount") == null ? null : rs.getBigDecimal("order_amount").doubleValue());
-            return row;
-        });
+    }
+
+    /** 运维（user_role=3）列表不展示已完成工单；单条查询、完工回包仍可查已完成（见 {@link #firstMap}）。 */
+    private static void appendSalesHideCompletedForList(StringBuilder sql, OpenidBizScope scope) {
+        if (scope.getUserRole() == '3') {
+            sql.append(" AND w.status <> '3'");
+        }
+    }
+
+    private static Map<String, Object> mapWorkOrderRow(ResultSet rs) throws SQLException {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("workOrderNo", rs.getString("work_order_no"));
+        row.put("orderNo", rs.getString("order_no"));
+        row.put("merchantName", rs.getString("merchant_name"));
+        row.put("workOrderTypeCode", rs.getString("work_order_type"));
+        row.put("workOrderType", labelWorkType(rs.getString("work_order_type")));
+        row.put("status", labelWorkStatus(rs.getString("status")));
+        row.put("statusCode", rs.getString("status"));
+        row.put("agentId", rs.getLong("agent_id"));
+        row.put("receiveSalesmanId", rs.getObject("receive_salesman_id") == null ? null : rs.getLong("receive_salesman_id"));
+        row.put("receiveSalesmanName", rs.getString("receive_salesman_name"));
+        row.put("workOrderTime", formatTs(rs.getTimestamp("work_order_time")));
+        BigDecimal estH = rs.getBigDecimal("estimated_work_hours");
+        row.put("estimatedWorkHours", estH == null ? null : estH.doubleValue());
+        BigDecimal mlng = rs.getBigDecimal("merchant_lng");
+        BigDecimal mlat = rs.getBigDecimal("merchant_lat");
+        row.put("longitude", mlng == null ? null : mlng.doubleValue());
+        row.put("latitude", mlat == null ? null : mlat.doubleValue());
+        row.put("workStartTime", formatTs(rs.getTimestamp("work_start_time")));
+        row.put("workEndTime", formatTs(rs.getTimestamp("work_end_time")));
+        Timestamp wst = rs.getTimestamp("work_start_time");
+        Timestamp wet = rs.getTimestamp("work_end_time");
+        Double actualH = null;
+        if (wst != null && wet != null && !wet.before(wst)) {
+            actualH = BigDecimal.valueOf(wet.getTime() - wst.getTime())
+                    .divide(BigDecimal.valueOf(3600000), 2, RoundingMode.HALF_UP)
+                    .doubleValue();
+        }
+        row.put("actualWorkHours", actualH);
+        Timestamp adl = rs.getTimestamp("accept_deadline");
+        long now = System.currentTimeMillis();
+        boolean expired = adl != null && now > adl.getTime();
+        row.put("grabExpired", expired);
+        row.put("canForceAssign", expired);
+        row.put("toMerchantId", rs.getObject("to_merchant_id") == null ? null : rs.getLong("to_merchant_id"));
+        row.put("toMerchantName", rs.getString("to_merchant_name"));
+        row.put("orderAmount", rs.getBigDecimal("order_amount") == null ? null : rs.getBigDecimal("order_amount").doubleValue());
+        return row;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -398,12 +414,15 @@ public class AppBizWorkOrderService {
     }
 
     private Map<String, Object> firstMap(String openid, String workOrderNo) {
-        for (Map<String, Object> m : listWorkOrders(openid)) {
-            if (workOrderNo.equals(m.get("workOrderNo"))) {
-                return m;
-            }
-        }
-        return new LinkedHashMap<>();
+        OpenidBizScope scope = scopeService.resolve(openid);
+        StringBuilder sql = baseWorkOrderListSql();
+        sql.append(" AND w.work_order_no = ? ");
+        List<Object> args = new ArrayList<>();
+        args.add(workOrderNo);
+        appendWorkOrderScope(sql, args, scope);
+        List<Map<String, Object>> rows =
+                jdbcTemplate.query(sql.toString(), args.toArray(), (rs, rowNum) -> mapWorkOrderRow(rs));
+        return rows.isEmpty() ? new LinkedHashMap<>() : rows.get(0);
     }
 
     private Map<String, Object> loadWorkOrder(String workOrderNo) {
