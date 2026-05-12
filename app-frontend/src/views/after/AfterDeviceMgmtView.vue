@@ -1,6 +1,7 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../../api.js";
+import PfSelect from "../../components/PfSelect.vue";
 import "../promo/promo-form.css";
 import "../../styles/deviceStatusBadge.css";
 import { deviceStatusPillClass } from "../../utils/deviceStatusDisplay.js";
@@ -37,6 +38,38 @@ const devicesOnMerchant = computed(() =>
 const devicesInStock = computed(() =>
   (devices.value || []).filter((d) => d.merchantId == null && d.deviceStatusCode === "0")
 );
+
+const transferDeviceOptions = computed(() => [
+  { value: "", label: "选择在库设备 *" },
+  ...devicesInStock.value.map((d) => ({
+    value: d.deviceNo,
+    label: `${d.deviceNo} · ${d.deviceStatus}`
+  }))
+]);
+
+const transferMerchantOptions = computed(() => [
+  { value: "", label: "选择目标门店 *" },
+  ...merchants.value.map((m) => ({
+    value: String(m.merchantId),
+    label: `${m.merchantName} · ${m.city || "—"} · #${m.merchantId}`
+  }))
+]);
+
+const removeDeviceOptions = computed(() => [
+  { value: "", label: "选择在店设备 *" },
+  ...devicesOnMerchant.value.map((d) => ({
+    value: d.deviceNo,
+    label: `${d.deviceNo} · ${d.deviceStatus} · ${d.merchantName || "门店#" + d.merchantId}`
+  }))
+]);
+
+const scrapDeviceOptions = computed(() => [
+  { value: "", label: "选择在库设备 *" },
+  ...devicesInStock.value.map((d) => ({
+    value: d.deviceNo,
+    label: `${d.deviceNo} · ${d.deviceStatus}`
+  }))
+]);
 
 async function load() {
   err.value = "";
@@ -248,18 +281,8 @@ onMounted(() => {
         </div>
       </div>
       <div class="pf-row" style="border: none; padding: 0; flex-direction: column; align-items: stretch; gap: 10px">
-        <select v-model="tDeviceNo" style="padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0">
-          <option value="">选择在库设备 *</option>
-          <option v-for="d in devicesInStock" :key="d.deviceId" :value="d.deviceNo">
-            {{ d.deviceNo }} · {{ d.deviceStatus }}
-          </option>
-        </select>
-        <select v-model="tMerchantId" style="padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0">
-          <option value="">选择目标门店 *</option>
-          <option v-for="m in merchants" :key="m.merchantId" :value="String(m.merchantId)">
-            {{ m.merchantName }} · {{ m.city || "—" }} · #{{ m.merchantId }}
-          </option>
-        </select>
+        <PfSelect v-model="tDeviceNo" :options="transferDeviceOptions" placeholder="选择在库设备 *" />
+        <PfSelect v-model="tMerchantId" :options="transferMerchantOptions" placeholder="选择目标门店 *" />
         <input v-model="tRemark" type="text" placeholder="说明（选填）" style="padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0" />
         <p v-if="!devicesInStock.length" class="pf-muted" style="margin: 0">当前无可调出设备（须为在库、未绑定门店）。</p>
         <p v-if="devicesInStock.length && !merchants.length" class="pf-muted" style="margin: 0">暂无可用门店，请先维护门店资料。</p>
@@ -281,12 +304,7 @@ onMounted(() => {
         </div>
       </div>
       <div class="pf-row" style="border: none; padding: 0; flex-direction: column; align-items: stretch; gap: 10px">
-        <select v-model="rDeviceNo" style="padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0">
-          <option value="">选择在店设备 *</option>
-          <option v-for="d in devicesOnMerchant" :key="d.deviceId" :value="d.deviceNo">
-            {{ d.deviceNo }} · {{ d.deviceStatus }} · {{ d.merchantName || "门店#" + d.merchantId }}
-          </option>
-        </select>
+        <PfSelect v-model="rDeviceNo" :options="removeDeviceOptions" placeholder="选择在店设备 *" />
         <input v-model="rRemark" type="text" placeholder="说明（选填）" style="padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0" />
         <p v-if="!devicesOnMerchant.length" class="pf-muted" style="margin: 0">当前无可移除设备（须为在店、已绑定门店）。</p>
         <div style="display: flex; gap: 8px">
@@ -307,10 +325,7 @@ onMounted(() => {
         </div>
       </div>
       <div class="pf-row" style="border: none; padding: 0; flex-direction: column; align-items: stretch; gap: 10px">
-        <select v-model="sDeviceNo" style="padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0">
-          <option value="">选择在库设备 *</option>
-          <option v-for="d in devicesInStock" :key="d.deviceId" :value="d.deviceNo">{{ d.deviceNo }} · {{ d.deviceStatus }}</option>
-        </select>
+        <PfSelect v-model="sDeviceNo" :options="scrapDeviceOptions" placeholder="选择在库设备 *" />
         <input v-model="sRemark" type="text" placeholder="说明（选填）" style="padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0" />
         <p v-if="!devicesInStock.length" class="pf-muted" style="margin: 0">当前无可报废设备（须为在库、未绑定门店）。</p>
         <div style="display: flex; gap: 8px">
@@ -323,6 +338,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.pf-panel :deep(.pf-select) {
+  width: 100%;
+}
+
 .device-meta-row {
   display: flex;
   align-items: center;

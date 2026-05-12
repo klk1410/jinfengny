@@ -1,6 +1,7 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../api.js";
+import PfSelect from "../components/PfSelect.vue";
 
 const shell = inject("appShell");
 const roleCode = computed(() => shell.portal?.roleCode ?? "");
@@ -47,6 +48,31 @@ const transferTargetOptions = computed(() => {
     return [];
   }
   return merchants.value.filter((m) => String(m.merchantId) !== String(src));
+});
+
+const merchantSelectOptions = computed(() =>
+  merchants.value.map((m) => ({
+    value: String(m.merchantId),
+    label: `${m.merchantName}（${m.merchantId}）`
+  }))
+);
+
+const toMerchantSelectOptions = computed(() =>
+  transferTargetOptions.value.map((m) => ({
+    value: String(m.merchantId),
+    label: `${m.merchantName}（${m.merchantId}）`
+  }))
+);
+
+const orderTypeSelectOptions = computed(() => {
+  const arr = [
+    { value: "加油", label: "加油" },
+    { value: "维护", label: "维护" }
+  ];
+  if (canTransferMerchant.value) {
+    arr.push({ value: "转移商家", label: "转移商家" });
+  }
+  return arr;
 });
 
 async function loadMerchants() {
@@ -150,12 +176,7 @@ onMounted(loadMerchants);
     <div v-if="roleCode !== 'merchant'" class="card">
       <h3 class="sub">选择商家</h3>
       <p v-if="form.orderType === '转移商家'" class="hint">转移商家：先选<strong>设备当前所在</strong>门店（源门店），再选目标门店。</p>
-      <select v-model="form.merchantId" class="inp full">
-        <option disabled value="">请选择商家</option>
-        <option v-for="m in merchants" :key="m.merchantId" :value="String(m.merchantId)">
-          {{ m.merchantName }}（{{ m.merchantId }}）
-        </option>
-      </select>
+      <PfSelect v-model="form.merchantId" :options="merchantSelectOptions" placeholder="请选择商家" />
     </div>
 
     <div v-else class="card">
@@ -168,22 +189,13 @@ onMounted(loadMerchants);
 
     <div v-if="form.orderType === '转移商家' && canTransferMerchant" class="card">
       <h3 class="sub">目标门店</h3>
-      <select v-model="form.toMerchantId" class="inp full">
-        <option disabled value="">请选择目标门店</option>
-        <option v-for="m in transferTargetOptions" :key="m.merchantId" :value="String(m.merchantId)">
-          {{ m.merchantName }}（{{ m.merchantId }}）
-        </option>
-      </select>
+      <PfSelect v-model="form.toMerchantId" :options="toMerchantSelectOptions" placeholder="请选择目标门店" />
       <p v-if="form.merchantId && !transferTargetOptions.length" class="hint">本代理下无其他可选门店。</p>
     </div>
 
     <div class="card">
       <h3 class="sub">订单类型</h3>
-      <select v-model="form.orderType" class="inp full">
-        <option>加油</option>
-        <option>维护</option>
-        <option v-if="canTransferMerchant">转移商家</option>
-      </select>
+      <PfSelect v-model="form.orderType" :options="orderTypeSelectOptions" placeholder="订单类型" />
       <div v-if="form.orderType === '加油'" class="row mt">
         <label>桶数</label>
         <input v-model.number="form.bucketCount" class="inp" type="number" min="1" step="1" />
@@ -230,6 +242,10 @@ onMounted(loadMerchants);
   padding: 12px;
   margin-bottom: 12px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+.card :deep(.pf-select) {
+  width: 100%;
 }
 .sub {
   margin: 0 0 10px;

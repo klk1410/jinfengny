@@ -3,6 +3,7 @@ import { computed, inject, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { requestJson } from "../api.js";
 import { orderWorkStatusPillClass } from "../utils/statusDisplay.js";
+import PfSelect from "../components/PfSelect.vue";
 
 const shell = inject("appShell");
 const router = useRouter();
@@ -30,10 +31,24 @@ const ESTIMATED_HOUR_OPTIONS = [
   { value: 72, label: "72 小时" }
 ];
 
+const estimatedHourSelectOptions = ESTIMATED_HOUR_OPTIONS.map((o) => ({
+  value: String(o.value),
+  label: o.label
+}));
+
 const confirmModal = ref(false);
 const confirmTargetNo = ref("");
 const estimatedHours = ref(2);
 const confirmBusy = ref(false);
+
+const estimatedHoursSelect = computed({
+  get() {
+    return String(estimatedHours.value);
+  },
+  set(v) {
+    estimatedHours.value = Number(v);
+  }
+});
 
 async function load() {
   err.value = "";
@@ -229,16 +244,13 @@ onMounted(() => {
           <p class="confirm-order-no">{{ confirmTargetNo }}</p>
           <label class="confirm-field-label" for="estimated-hours-select">预计工作时间</label>
           <div class="confirm-select-wrap">
-            <select
+            <PfSelect
               id="estimated-hours-select"
-              v-model.number="estimatedHours"
-              class="confirm-select"
+              v-model="estimatedHoursSelect"
+              :options="estimatedHourSelectOptions"
+              placeholder="预计工时"
               :disabled="confirmBusy"
-            >
-              <option v-for="opt in ESTIMATED_HOUR_OPTIONS" :key="opt.value" :value="opt.value">
-                {{ opt.label }}
-              </option>
-            </select>
+            />
           </div>
           <p class="confirm-hint">单位：小时。确认后将生成待分配工单。</p>
           <div class="confirm-actions">
@@ -434,52 +446,11 @@ onMounted(() => {
 }
 
 .confirm-select-wrap {
-  position: relative;
-}
-
-.confirm-select-wrap::after {
-  content: "";
-  position: absolute;
-  right: 12px;
-  top: 50%;
-  width: 0;
-  height: 0;
-  margin-top: -3px;
-  border-left: 5px solid transparent;
-  border-right: 5px solid transparent;
-  border-top: 6px solid #64748b;
-  pointer-events: none;
-}
-
-.confirm-select {
   width: 100%;
-  box-sizing: border-box;
-  appearance: none;
-  padding: 10px 36px 10px 12px;
-  font-size: 14px;
-  color: #0f172a;
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  outline: none;
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
 
-.confirm-select:hover:not(:disabled) {
-  border-color: #94a3b8;
-  background: #fff;
-}
-
-.confirm-select:focus {
-  border-color: #1f6dff;
-  box-shadow: 0 0 0 3px rgba(31, 109, 255, 0.2);
-  background: #fff;
-}
-
-.confirm-select:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
+.confirm-select-wrap :deep(.pf-select) {
+  width: 100%;
 }
 
 .confirm-hint {

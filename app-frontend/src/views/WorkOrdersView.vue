@@ -2,6 +2,7 @@
 import { computed, inject, onMounted, ref, watch } from "vue";
 import { requestJson } from "../api.js";
 import { orderWorkStatusPillClass } from "../utils/statusDisplay.js";
+import PfSelect from "../components/PfSelect.vue";
 
 const shell = inject("appShell");
 const rows = ref([]);
@@ -33,6 +34,13 @@ function assignSalesmenForRow(list, wo) {
 }
 
 const assignSalesmenOptions = computed(() => assignSalesmenForRow(assignSalesmenRaw.value, assignRow.value));
+
+const assignSalesSelectOptions = computed(() =>
+  assignSalesmenOptions.value.map((s) => ({
+    value: String(s.salesmanId),
+    label: assignOptionLabel(s)
+  }))
+);
 
 function assignOptionLabel(s) {
   const base = `${s.salesmanName} · ${s.phone || "无电话"}`;
@@ -437,17 +445,13 @@ function openMerchantMap(w) {
         <p v-if="assignBusy" class="muted">加载中…</p>
         <template v-else>
           <label class="dlg-lab" for="assign-sales-select">选择业务员</label>
-          <select
+          <PfSelect
             id="assign-sales-select"
             v-model="assignSalesmanId"
-            class="dlg-select"
-            :disabled="!assignSalesmenOptions.length"
-          >
-            <option disabled value="">请选择</option>
-            <option v-for="s in assignSalesmenOptions" :key="s.salesmanId" :value="String(s.salesmanId)">
-              {{ assignOptionLabel(s) }}
-            </option>
-          </select>
+            :options="assignSalesSelectOptions"
+            :disabled="assignBusy || !assignSalesSelectOptions.length"
+            placeholder="请选择"
+          />
           <p v-if="!assignSalesmenOptions.length" class="dlg-warn">暂无可指派的在职业务员，请先在业务员管理中维护。</p>
         </template>
         <div class="dlg-actions">
@@ -748,15 +752,8 @@ function openMerchantMap(w) {
 .mask--assign {
   z-index: 55;
 }
-.dlg-select {
+.dialog :deep(.pf-select) {
   width: 100%;
-  box-sizing: border-box;
-  border: 1px solid #d0d7e2;
-  border-radius: 6px;
-  padding: 10px 12px;
-  font-size: 14px;
-  color: #0f172a;
-  background: #fff;
   margin-bottom: 8px;
 }
 .dlg-warn {

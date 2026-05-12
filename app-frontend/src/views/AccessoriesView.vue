@@ -2,6 +2,7 @@
 import { computed, inject, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { requestJson } from "../api.js";
+import PfSelect from "../components/PfSelect.vue";
 
 const shell = inject("appShell");
 const router = useRouter();
@@ -25,6 +26,21 @@ const typeForm = ref({
 });
 
 const canCreate = computed(() => roleCode.value === "agent" || roleCode.value === "sales");
+
+const typeSelectOptions = computed(() => [
+  { value: "", label: "请选择" },
+  ...types.value.map((t) => ({
+    value: String(t.typeId),
+    label: t.typeName
+  }))
+]);
+
+const operatorSelectOptions = computed(() =>
+  operators.value.map((o) => ({
+    value: o.operatorKey,
+    label: o.label
+  }))
+);
 
 async function load() {
   err.value = "";
@@ -146,10 +162,7 @@ onMounted(load);
       <h3 class="sub">配件入库</h3>
       <div class="row">
         <label>种类</label>
-        <select v-model="form.typeId" class="inp">
-          <option disabled value="">请选择</option>
-          <option v-for="t in types" :key="t.typeId" :value="String(t.typeId)">{{ t.typeName }}</option>
-        </select>
+        <PfSelect v-model="form.typeId" :options="typeSelectOptions" placeholder="请选择" />
       </div>
       <div class="row">
         <label>入库成本</label>
@@ -165,9 +178,7 @@ onMounted(load);
       </div>
       <div class="row">
         <label>操作人员</label>
-        <select v-model="form.operatorKey" class="inp">
-          <option v-for="o in operators" :key="o.operatorKey" :value="o.operatorKey">{{ o.label }}</option>
-        </select>
+        <PfSelect v-model="form.operatorKey" :options="operatorSelectOptions" placeholder="请选择" />
       </div>
       <div class="row">
         <label>备注</label>
@@ -227,6 +238,10 @@ onMounted(load);
   align-items: center;
   margin-bottom: 8px;
   font-size: 12px;
+}
+
+.row :deep(.pf-select) {
+  min-width: 0;
 }
 .inp {
   border: 1px solid #d0d7e2;

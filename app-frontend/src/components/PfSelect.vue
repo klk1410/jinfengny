@@ -12,7 +12,9 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
   placeholder: { type: String, default: "请选择" },
   /** 紧凑高度与字号（如顶部测试用户条） */
-  dense: { type: Boolean, default: false }
+  dense: { type: Boolean, default: false },
+  /** 触发按钮 id（便于 label for 关联） */
+  id: { type: String, default: "" }
 });
 
 const emit = defineEmits(["update:modelValue", "change"]);
@@ -104,6 +106,7 @@ onBeforeUnmount(() => {
 <template>
   <div ref="root" class="pf-select" :class="{ 'pf-select--dense': dense }">
     <button
+      :id="id || undefined"
       ref="triggerRef"
       type="button"
       class="pf-select__trigger"
