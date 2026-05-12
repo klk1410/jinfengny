@@ -6,6 +6,13 @@ import { requestJson } from "../api.js";
 const router = useRouter();
 const route = useRoute();
 
+const TEST_OPENID_USERS = [
+  { openid: "main-openid-001", label: "主端" },
+  { openid: "agent-openid-001", label: "代理" },
+  { openid: "sales-openid-001", label: "业务员" },
+  { openid: "merchant-openid-001", label: "商家" }
+];
+
 const loginOpenid = ref("merchant-openid-001");
 const portal = ref(null);
 const loadError = ref("");
@@ -98,8 +105,12 @@ onMounted(() => {
       </div>
 
       <div class="dev-strip">
-        <span class="dev-label">测试 openid</span>
-        <input v-model="loginOpenid" class="dev-input" type="text" autocomplete="off" />
+        <span class="dev-label">测试用户</span>
+        <select v-model="loginOpenid" class="dev-select" :disabled="loading" @change="refreshPortal">
+          <option v-for="u in TEST_OPENID_USERS" :key="u.openid" :value="u.openid">
+            {{ u.label }}（{{ u.openid }}）
+          </option>
+        </select>
         <button type="button" class="dev-btn" :disabled="loading" @click="refreshPortal">
           {{ loading ? "…" : "刷新" }}
         </button>
@@ -226,13 +237,16 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-.dev-input {
+.dev-select {
   flex: 1;
-  min-width: 120px;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid #d0d7e2;
   border-radius: 6px;
   padding: 6px 8px;
   font-size: 12px;
+  background: #fff;
+  color: #1a1a1a;
 }
 
 .dev-btn {
