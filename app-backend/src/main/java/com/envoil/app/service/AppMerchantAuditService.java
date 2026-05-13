@@ -427,6 +427,7 @@ public class AppMerchantAuditService {
         m.put("oilUnitPrice", r.getOilUnitPrice());
         m.put("oilTypeId", r.getOilTypeId());
         m.put("merchantCommission", r.getMerchantCommission());
+        m.put("depositAmount", r.getDepositAmount());
         m.put("salesmanId", r.getSalesmanId());
         m.put("linkedMerchantId", r.getLinkedMerchantId());
         m.put("remark", r.getRemark());
@@ -455,6 +456,7 @@ public class AppMerchantAuditService {
         m.put("oilUnitPrice", r.getOilUnitPrice());
         m.put("oilTypeId", r.getOilTypeId());
         m.put("merchantCommission", r.getMerchantCommission());
+        m.put("depositAmount", r.getDepositAmount());
         m.put("salesmanId", r.getSalesmanId());
         m.put("linkedMerchantId", r.getLinkedMerchantId());
         m.put("remark", r.getRemark());

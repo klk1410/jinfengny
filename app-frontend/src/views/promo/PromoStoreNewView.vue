@@ -31,6 +31,7 @@ const locating = ref(false);
 const agentId = ref("1");
 const oilTypes = ref([]);
 const oilTypeId = ref("1");
+const depositAmount = ref(0);
 
 const industryOptions = ["餐饮", "酒店", "工厂", "学校", "企事业单位", "其他"];
 const salesmen = ref([]);
@@ -191,6 +192,15 @@ function validate() {
     err.value = "请上传合同图片";
     return false;
   }
+  const dep = Number(depositAmount.value);
+  if (Number.isNaN(dep)) {
+    err.value = "请填写有效押金金额";
+    return false;
+  }
+  if (dep < 0) {
+    err.value = "押金须大于等于 0";
+    return false;
+  }
   if (isMain.value && !String(agentId.value).trim()) {
     err.value = "主端请填写代理 ID";
     return false;
@@ -217,6 +227,7 @@ async function submit() {
       oilUnitPrice: 0,
       oilTypeId: Number(oilTypeId.value) || 1,
       merchantCommission: 0,
+      depositAmount: Math.round(Number(depositAmount.value) * 100) / 100,
       remark: remark.value.trim() || null,
       storeImageUrl: storeImageUrl.value || null,
       contractImageUrl: contractImageUrl.value.trim(),
@@ -333,6 +344,13 @@ onMounted(() => {
         <div class="pf-label req">详细地址</div>
         <div class="pf-field-wrap">
           <input v-model="addressDetail" class="pf-field" type="text" placeholder="请填写详细地址" />
+        </div>
+      </div>
+
+      <div class="pf-row">
+        <div class="pf-label req">押金（元）</div>
+        <div class="pf-field-wrap">
+          <input v-model.number="depositAmount" class="pf-field" type="number" min="0" step="0.01" placeholder="0 表示无押金" />
         </div>
       </div>
 

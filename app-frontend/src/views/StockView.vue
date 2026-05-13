@@ -12,21 +12,37 @@ const inboundTargetAgentId = ref("1");
 const filterAgentId = ref("");
 const oilTypes = ref([]);
 const inboundOilTypeId = ref("1");
-const inboundQtyUnit = ref("桶");
+const inboundQtyUnit = ref("吨");
 const inboundQtyUnitOptions = [
-  { value: "桶", label: "桶" },
-  { value: "斤", label: "斤（按密度折）" },
-  { value: "升", label: "升（按密度折）" }
+  { value: "吨", label: "吨" },
+  { value: "桶", label: "桶（折算吨入库）" },
+  { value: "斤", label: "斤（按密度折吨）" },
+  { value: "升", label: "升（按密度折吨）" }
 ];
+const roleCode = computed(() => shell.roleCode ?? shell.portal?.roleCode ?? "");
+const newOilTypeName = ref("");
+const newOilDensity = ref(0.85);
+const newOilPrice = ref("");
+const newOilLitersPerBucket = ref(200);
+const isMain = computed(() => roleCode.value === "main");
+const canInbound = computed(() => roleCode.value === "main" || roleCode.value === "agent");
+const canAddOilType = computed(() => roleCode.value === "main");
+
+function oilTypeOptionLabel(x) {
+  const name = x.typeName ?? "";
+  const rho = x.densityKgPerLiter ?? "";
+  const p = x.defaultUnitPricePerBucket;
+  const priceStr =
+    p != null && Number.isFinite(Number(p)) ? ` · ¥${Number(p).toFixed(2)}/桶` : "";
+  return `${name}（ρ ${rho} kg/L${priceStr}）`;
+}
+
 const oilTypeSelectOptions = computed(() =>
   (oilTypes.value || []).map((x) => ({
     value: String(x.oilTypeId),
-    label: `${x.typeName}（ρ ${x.densityKgPerLiter} kg/L）`
+    label: oilTypeOptionLabel(x)
   }))
 );
-const roleCode = computed(() => shell.roleCode ?? shell.portal?.roleCode ?? "");
-const isMain = computed(() => roleCode.value === "main");
-const canInbound = computed(() => roleCode.value === "main" || roleCode.value === "agent");
 
 async function load() {
   err.value = "";
@@ -57,7 +73,7 @@ async function onInbound() {
     q.set("openid", oid);
     q.set("qty", String(inboundQty.value));
     q.set("oilTypeId", inboundOilTypeId.value || "1");
-    q.set("qtyUnit", inboundQtyUnit.value || "桶");
+    q.set("qtyUnit", inboundQtyUnit.value || "吨");
     if (isMain.value) {
       q.set("agentId", inboundTargetAgentId.value);
     }
@@ -76,6 +92,54 @@ async function loadOilTypes() {
     }
   } catch {
     oilTypes.value = [];
+  }
+}
+
+async function onCreateOilType() {
+  err.value = "";
+  try {
+    const oid =
+      typeof shell.loginOpenid === "object" && shell.loginOpenid?.value != null
+        ? shell.loginOpenid.value
+        : shell.loginOpenid;
+    const name = String(newOilTypeName.value || "").trim();
+    if (!name) {
+      err.value = "请填写油品名称";
+      return;
+    }
+    const d = Number(newOilDensity.value);
+    const p = Number(newOilPrice.value);
+    if (!Number.isFinite(d) || d <= 0) {
+      err.value = "请填写有效的密度 (kg/L)";
+      return;
+    }
+    if (!Number.isFinite(p) || p <= 0) {
+      err.value = "请填写有效的单价 (元/桶)";
+      return;
+    }
+    const lb = Number(newOilLitersPerBucket.value);
+    const body = {
+      openid: oid,
+      typeName: name,
+      densityKgPerLiter: d,
+      unitPricePerBucket: p
+    };
+    if (Number.isFinite(lb) && lb > 0) {
+      body.litersPerBucket = lb;
+    }
+    const data = await requestJson("/app-api/biz/oil-types", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    inboundOilTypeId.value = String(data.oilTypeId);
+    newOilTypeName.value = "";
+    newOilDensity.value = 0.85;
+    newOilPrice.value = "";
+    newOilLitersPerBucket.value = 200;
+    await loadOilTypes();
+  } catch (e) {
+    err.value = e.message || String(e);
   }
 }
 
@@ -155,9 +219,31 @@ function flowQtyHint(code) {
       <button type="button" class="btn secondary" @click="load">刷新列表</button>
     </div>
 
+    <div v-if="canAddOilType" class="card">
+      <h3 class="sub">新增油品类型</h3>
+      <p class="hint-text">填写名称、密度 (kg/L)、参考单价 (元/桶)；每桶升数默认 200，与下单按桶折算一致。</p>
+      <div class="row">
+        <label>名称</label>
+        <input v-model.trim="newOilTypeName" class="inp" type="text" maxlength="100" placeholder="如 高标调和油" />
+      </div>
+      <div class="row">
+        <label>密度</label>
+        <input v-model.number="newOilDensity" class="inp" type="number" min="0.0001" step="0.0001" />
+      </div>
+      <div class="row">
+        <label>单价</label>
+        <input v-model.number="newOilPrice" class="inp" type="number" min="0.01" step="0.01" placeholder="元/桶" />
+      </div>
+      <div class="row">
+        <label>每桶升</label>
+        <input v-model.number="newOilLitersPerBucket" class="inp" type="number" min="0.01" step="0.1" />
+      </div>
+      <button type="button" class="btn secondary" @click="onCreateOilType">保存品种</button>
+    </div>
+
     <div v-if="canInbound" class="card">
       <h3 class="sub">手工入库</h3>
-      <p class="hint-text">选择油品与入库单位，服务端按密度折算为仓储统一的「桶」当量。</p>
+      <p class="hint-text">仓储油品以「吨」记账；可按吨、桶、斤、升录入，服务端按密度与每桶升数统一折算为吨。</p>
       <div v-if="isMain" class="row">
         <label>代理 ID</label>
         <input v-model="inboundTargetAgentId" class="inp" type="text" />
@@ -184,7 +270,7 @@ function flowQtyHint(code) {
         <article v-for="(s, i) in summary" :key="i" class="dc-card dc-card--white">
           <div class="line strong">{{ s.agentName }}（#{{ s.agentId }}）</div>
           <div v-if="s.oilTypeName" class="line muted-line">{{ s.oilTypeName }}</div>
-          <div class="line">在库 {{ s.qtyOnHand }} · 预扣 {{ s.qtyReserved }} · 可用 {{ s.qtyAvailable }}（桶当量）</div>
+          <div class="line">在库 {{ s.qtyOnHand }} · 预扣 {{ s.qtyReserved }} · 可用 {{ s.qtyAvailable }}（吨）</div>
         </article>
       </div>
     </div>
@@ -203,7 +289,7 @@ function flowQtyHint(code) {
             <span class="flow-kind-tag">{{ f.flowKind }}</span>
             <span class="flow-qty-line" :class="'flow-qty-line--' + flowVariant(f.flowKindCode)">
               <span class="flow-qty-num">{{ flowQtyDisplay(f) }}</span>
-              <span class="flow-qty-unit">桶</span>
+              <span class="flow-qty-unit">吨</span>
             </span>
           </div>
           <p class="flow-hint">{{ flowQtyHint(f.flowKindCode) }}</p>

@@ -26,6 +26,7 @@ const oilUnitPrice = ref(0);
 const oilTypeId = ref("1");
 const oilTypes = ref([]);
 const merchantCommission = ref(0);
+const depositAmount = ref(0);
 const salesmanId = ref("");
 const remark = ref("");
 const storeImageUrl = ref("");
@@ -100,6 +101,7 @@ function applyDetail(d) {
   oilUnitPrice.value = d.oilUnitPrice ?? 0;
   oilTypeId.value = d.oilTypeId != null ? String(d.oilTypeId) : "1";
   merchantCommission.value = d.merchantCommission ?? 0;
+  depositAmount.value = d.depositAmount ?? 0;
   salesmanId.value = d.salesmanId != null ? String(d.salesmanId) : "";
   remark.value = d.remark || "";
   storeImageUrl.value = d.storeImageUrl || "";
@@ -216,6 +218,7 @@ function buildWriteBody() {
     oilUnitPrice: Number(oilUnitPrice.value) || 0,
     oilTypeId: Number(oilTypeId.value) || 1,
     merchantCommission: Number(merchantCommission.value) || 0,
+    depositAmount: Math.round(Number(depositAmount.value) * 100) / 100,
     remark: remark.value.trim() || null,
     storeImageUrl: storeImageUrl.value || null,
     contractImageUrl: contractImageUrl.value || null,
@@ -255,6 +258,11 @@ function validate() {
   const ml = mapLocationInfo.value.trim() || detail.value?.mapLocationInfo || "";
   if (ml.length > 500) {
     err.value = "地图定位说明过长";
+    return false;
+  }
+  const dep = Number(depositAmount.value);
+  if (Number.isNaN(dep) || dep < 0) {
+    err.value = "押金须为大于等于 0 的数字";
     return false;
   }
   return true;
@@ -448,6 +456,13 @@ onMounted(() => {
           </div>
         </div>
 
+        <div class="pf-row">
+          <div class="pf-label req">押金（元）</div>
+          <div class="pf-field-wrap">
+            <input v-model.number="depositAmount" class="pf-field" type="number" min="0" step="0.01" :disabled="readOnly" />
+          </div>
+        </div>
+
         <div v-if="canDirectEdit" class="pf-row">
           <div class="pf-label">运维</div>
           <div class="pf-field-wrap pf-field-wrap--select">
@@ -490,6 +505,10 @@ onMounted(() => {
             <div class="biz-row">
               <span class="biz-k">账号状态</span>
               <span :class="entityOnOffPillClass(detail.statusCode)">{{ detail.status }}</span>
+            </div>
+            <div class="biz-row">
+              <span class="biz-k">押金</span>
+              <span class="biz-v">¥{{ Number(depositAmount).toFixed(2) }}</span>
             </div>
             <div class="biz-row">
               <span class="biz-k">欠费金额</span>

@@ -2,6 +2,7 @@ package com.envoil.app.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import javax.validation.constraints.DecimalMin;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 
@@ -50,6 +51,11 @@ public class MerchantUpdateRequest {
     private Double oilUnitPrice;
     private Long oilTypeId;
     private Double merchantCommission;
+
+    /** 押金（元）；不传则保持原值，传则须 >= 0 */
+    @DecimalMin(value = "0.0", inclusive = true, message = "押金须大于等于0")
+    private Double depositAmount;
+
     private Long salesmanId;
     private Long linkedMerchantId;
     private String remark;
@@ -178,6 +184,14 @@ public class MerchantUpdateRequest {
 
     public void setMerchantCommission(Double merchantCommission) {
         this.merchantCommission = merchantCommission;
+    }
+
+    public Double getDepositAmount() {
+        return depositAmount;
+    }
+
+    public void setDepositAmount(Double depositAmount) {
+        this.depositAmount = depositAmount;
     }
 
     public Long getSalesmanId() {

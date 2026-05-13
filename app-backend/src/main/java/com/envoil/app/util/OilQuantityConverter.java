@@ -9,6 +9,24 @@ public final class OilQuantityConverter {
     }
 
     /**
+     * 将「桶」当量折算为质量（吨）：吨 = 桶当量 × 每桶升数 × 密度(kg/L) / 1000。
+     */
+    public static BigDecimal bucketEquivalentToTons(
+            BigDecimal bucketEquivalent, BigDecimal densityKgPerL, BigDecimal litersPerBucket) {
+        if (bucketEquivalent == null || bucketEquivalent.compareTo(BigDecimal.ZERO) <= 0) {
+            return BigDecimal.ZERO;
+        }
+        if (densityKgPerL == null || densityKgPerL.compareTo(BigDecimal.ZERO) <= 0
+                || litersPerBucket == null || litersPerBucket.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("油品密度或每桶升数无效");
+        }
+        return bucketEquivalent
+                .multiply(litersPerBucket)
+                .multiply(densityKgPerL)
+                .divide(new BigDecimal("1000"), 6, RoundingMode.HALF_UP);
+    }
+
+    /**
      * 将用户输入的数量（桶 / 斤 / 升）折算为与仓储一致的标准「桶」当量。
      */
     public static BigDecimal toBuckets(BigDecimal qty, char unit, BigDecimal densityKgPerL, BigDecimal litersPerBucket) {
@@ -49,8 +67,11 @@ public final class OilQuantityConverter {
         if ("升".equals(t)) {
             return 'L';
         }
+        if ("吨".equals(t)) {
+            return 'T';
+        }
         String u = t.toUpperCase();
-        if ("B".equals(u) || "J".equals(u) || "L".equals(u)) {
+        if ("B".equals(u) || "J".equals(u) || "L".equals(u) || "T".equals(u)) {
             return u.charAt(0);
         }
         return t.charAt(0);

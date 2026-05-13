@@ -5,6 +5,7 @@ import com.envoil.app.model.DeviceEventCreateRequest;
 import com.envoil.app.model.MerchantAuditReviewRequest;
 import com.envoil.app.model.MerchantCreateRequest;
 import com.envoil.app.model.MerchantUpdateRequest;
+import com.envoil.app.model.OilTypeCreateRequest;
 import com.envoil.app.model.AccountShareCreateRequest;
 import com.envoil.app.model.AccessoryCreateRequest;
 import com.envoil.app.model.AccessoryTypeCreateRequest;
@@ -211,6 +212,11 @@ public class AppBizController {
     @GetMapping("/oil-types")
     public ApiResponse<?> oilTypes() {
         return ApiResponse.ok(bizDataService.listOilTypes());
+    }
+
+    @PostMapping("/oil-types")
+    public ApiResponse<?> createOilType(@Validated @RequestBody OilTypeCreateRequest req) {
+        return ApiResponse.ok(bizDataService.createOilType(req));
     }
 
     @PostMapping("/stock/inbound")

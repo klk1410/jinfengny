@@ -3,6 +3,7 @@ package com.envoil.app.service;
 import com.envoil.app.model.MerchantCreateRequest;
 import com.envoil.app.util.OilQuantityConverter;
 import com.envoil.app.model.MerchantUpdateRequest;
+import com.envoil.app.model.OilTypeCreateRequest;
 import com.envoil.app.model.OpenidBizScope;
 import com.envoil.app.model.AccessoryCreateRequest;
 import com.envoil.app.model.AccessoryTypeCreateRequest;
@@ -50,6 +51,7 @@ public class AppBizDataService {
         StringBuilder sql = new StringBuilder()
                 .append("SELECT m.merchant_id, m.merchant_name, m.contact_name, m.contact_phone, m.city, ")
                 .append("m.oil_unit_price, COALESCE(m.oil_type_id, 1) AS oil_type_id, ot.type_name AS oil_type_name, ")
+                .append("m.deposit_amount, ")
                 .append("COALESCE(ot.density_kg_per_liter, 0.85) AS density_kg_per_liter, ")
                 .append("COALESCE(ot.liters_per_bucket, 200) AS liters_per_bucket, ")
                 .append("m.arrears_amount, a.agent_name, sm.salesman_name, m.status ")
@@ -71,6 +73,7 @@ public class AppBizDataService {
             row.put("oilUnitPrice", rs.getBigDecimal("oil_unit_price").doubleValue());
             row.put("oilTypeId", rs.getLong("oil_type_id"));
             row.put("oilTypeName", rs.getString("oil_type_name"));
+            row.put("depositAmount", rs.getBigDecimal("deposit_amount") == null ? 0 : rs.getBigDecimal("deposit_amount").doubleValue());
             row.put("densityKgPerLiter", rs.getBigDecimal("density_kg_per_liter").doubleValue());
             row.put("litersPerBucket", rs.getBigDecimal("liters_per_bucket").doubleValue());
             row.put("arrearsAmount", rs.getBigDecimal("arrears_amount").doubleValue());
@@ -137,6 +140,13 @@ public class AppBizDataService {
         if (locInfo.length() > 500) {
             throw new IllegalArgumentException("地图定位说明过长");
         }
+        if (req.getDepositAmount() == null) {
+            throw new IllegalArgumentException("请填写押金");
+        }
+        BigDecimal dep = BigDecimal.valueOf(req.getDepositAmount()).setScale(2, RoundingMode.HALF_UP);
+        if (dep.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("押金须大于等于0");
+        }
     }
 
     /**
@@ -147,6 +157,7 @@ public class AppBizDataService {
         final Long insertSalesmanId = salesmanId;
         BigDecimal oil = BigDecimal.valueOf(req.getOilUnitPrice() == null ? 0 : req.getOilUnitPrice());
         BigDecimal comm = BigDecimal.valueOf(req.getMerchantCommission() == null ? 0 : req.getMerchantCommission());
+        BigDecimal deposit = BigDecimal.valueOf(req.getDepositAmount()).setScale(2, RoundingMode.HALF_UP);
         BigDecimal lon = BigDecimal.valueOf(req.getLongitude());
         BigDecimal lat = BigDecimal.valueOf(req.getLatitude());
         String img = req.getStoreImageUrl();
@@ -157,9 +168,9 @@ public class AppBizDataService {
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement(
                     "INSERT INTO biz_env_merchant (agent_id, salesman_id, industry_type, merchant_name, contact_name, contact_phone, "
-                            + "longitude, latitude, province, city, district, address_detail, oil_unit_price, oil_type_id, merchant_commission, "
+                            + "longitude, latitude, province, city, district, address_detail, oil_unit_price, oil_type_id, merchant_commission, deposit_amount, "
                             + "remark, store_image_url, contract_image_url, map_location_info, linked_merchant_id, status, del_flag) "
-                            + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, '0','0')",
+                            + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, '0','0')",
                     Statement.RETURN_GENERATED_KEYS);
             ps.setLong(1, agentId);
             if (insertSalesmanId == null) {
@@ -180,14 +191,15 @@ public class AppBizDataService {
             ps.setBigDecimal(13, oil);
             ps.setLong(14, oilTypeIdIns);
             ps.setBigDecimal(15, comm);
-            ps.setString(16, req.getRemark());
-            ps.setString(17, img);
-            ps.setString(18, contractImg);
-            ps.setString(19, mapLoc);
+            ps.setBigDecimal(16, deposit);
+            ps.setString(17, req.getRemark());
+            ps.setString(18, img);
+            ps.setString(19, contractImg);
+            ps.setString(20, mapLoc);
             if (req.getLinkedMerchantId() == null) {
-                ps.setObject(20, null);
+                ps.setObject(21, null);
             } else {
-                ps.setLong(20, req.getLinkedMerchantId());
+                ps.setLong(21, req.getLinkedMerchantId());
             }
             return ps;
         }, kh);
@@ -209,7 +221,7 @@ public class AppBizDataService {
                 .append("SELECT m.merchant_id, m.agent_id, m.salesman_id, m.industry_type, m.merchant_name, m.contact_name, ")
                 .append("m.contact_phone, m.longitude, m.latitude, m.province, m.city, m.district, m.address_detail, ")
                 .append("m.oil_unit_price, COALESCE(m.oil_type_id, 1) AS oil_type_id, ot.type_name AS oil_type_name, ")
-                .append("m.merchant_commission, m.arrears_amount, m.device_count, m.status, ")
+                .append("m.merchant_commission, m.deposit_amount, m.arrears_amount, m.device_count, m.status, ")
                 .append("m.remark, m.store_image_url, m.contract_image_url, m.map_location_info, m.linked_merchant_id, a.agent_name, sm.salesman_name ")
                 .append("FROM biz_env_merchant m ")
                 .append("JOIN biz_env_agent a ON a.agent_id = m.agent_id AND a.del_flag = '0' ")
@@ -243,6 +255,7 @@ public class AppBizDataService {
                     row.put("merchantCommission", rs.getBigDecimal("merchant_commission") == null
                             ? 0
                             : rs.getBigDecimal("merchant_commission").doubleValue());
+                    row.put("depositAmount", rs.getBigDecimal("deposit_amount") == null ? 0 : rs.getBigDecimal("deposit_amount").doubleValue());
                     row.put("arrearsAmount", rs.getBigDecimal("arrears_amount") == null ? 0 : rs.getBigDecimal("arrears_amount").doubleValue());
                     row.put("deviceCount", rs.getInt("device_count"));
                     row.put("status", labelMerchantStatus(rs.getString("status")));
@@ -329,10 +342,24 @@ public class AppBizDataService {
         BigDecimal lon = BigDecimal.valueOf(req.getLongitude());
         BigDecimal lat = BigDecimal.valueOf(req.getLatitude());
         Long oilTypeIdUp = req.getOilTypeId() == null ? 1L : req.getOilTypeId();
+        BigDecimal depositVal;
+        if (req.getDepositAmount() == null) {
+            BigDecimal cur = jdbcTemplate.queryForObject(
+                    "SELECT COALESCE(deposit_amount, 0) FROM biz_env_merchant WHERE merchant_id = ? AND agent_id = ? AND del_flag = '0'",
+                    BigDecimal.class,
+                    merchantId,
+                    agentId);
+            depositVal = cur == null ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP) : cur.setScale(2, RoundingMode.HALF_UP);
+        } else {
+            depositVal = BigDecimal.valueOf(req.getDepositAmount()).setScale(2, RoundingMode.HALF_UP);
+            if (depositVal.compareTo(BigDecimal.ZERO) < 0) {
+                throw new IllegalArgumentException("押金须大于等于0");
+            }
+        }
         int n = jdbcTemplate.update(
                 "UPDATE biz_env_merchant SET industry_type = ?, merchant_name = ?, contact_name = ?, contact_phone = ?, "
                         + "longitude = ?, latitude = ?, province = ?, city = ?, district = ?, address_detail = ?, "
-                        + "oil_unit_price = ?, oil_type_id = ?, merchant_commission = ?, salesman_id = ?, linked_merchant_id = ?, remark = ?, "
+                        + "oil_unit_price = ?, oil_type_id = ?, merchant_commission = ?, deposit_amount = ?, salesman_id = ?, linked_merchant_id = ?, remark = ?, "
                         + "store_image_url = ?, contract_image_url = COALESCE(?, contract_image_url), map_location_info = COALESCE(?, map_location_info) "
                         + "WHERE merchant_id = ? AND agent_id = ? AND del_flag = '0'",
                 req.getIndustryType(),
@@ -348,6 +375,7 @@ public class AppBizDataService {
                 oil,
                 oilTypeIdUp,
                 comm,
+                depositVal,
                 salesmanId,
                 req.getLinkedMerchantId(),
                 req.getRemark(),
@@ -1315,22 +1343,32 @@ public class AppBizDataService {
         Map<String, Object> ot = otRows.get(0);
         BigDecimal density = new BigDecimal(ot.get("density_kg_per_liter").toString());
         BigDecimal litersPerBucket = new BigDecimal(ot.get("liters_per_bucket").toString());
-        char u = OilQuantityConverter.normalizeOilQtyUnit(qtyUnitRaw);
-        BigDecimal buckets = OilQuantityConverter.toBuckets(qty, u, density, litersPerBucket).setScale(4, RoundingMode.HALF_UP);
+        char u = Character.toUpperCase(OilQuantityConverter.normalizeOilQtyUnit(qtyUnitRaw));
+        BigDecimal tons;
+        if (u == 'T') {
+            if (qty == null || qty.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("数量须大于 0");
+            }
+            tons = qty.setScale(6, RoundingMode.HALF_UP);
+        } else {
+            BigDecimal buckets =
+                    OilQuantityConverter.toBuckets(qty, u, density, litersPerBucket).setScale(4, RoundingMode.HALF_UP);
+            tons = OilQuantityConverter.bucketEquivalentToTons(buckets, density, litersPerBucket);
+        }
         String rm = remark;
         if (rm == null || rm.isEmpty()) {
             rm = "手工入库（折算 "
-                    + buckets.stripTrailingZeros().toPlainString()
-                    + " 桶当量，入库单位 "
+                    + tons.stripTrailingZeros().toPlainString()
+                    + " 吨，入库单位 "
                     + u
                     + "）";
         }
-        stockService.inboundOil(agentId, otId, buckets, rm);
+        stockService.inboundOil(agentId, otId, tons, rm);
     }
 
     public List<Map<String, Object>> listOilTypes() {
         return jdbcTemplate.query(
-                "SELECT oil_type_id, type_name, density_kg_per_liter, liters_per_bucket "
+                "SELECT oil_type_id, type_name, density_kg_per_liter, liters_per_bucket, default_unit_price "
                         + "FROM biz_env_oil_type WHERE del_flag = '0' ORDER BY sort_order, oil_type_id",
                 (rs, i) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
@@ -1338,8 +1376,63 @@ public class AppBizDataService {
                     row.put("typeName", rs.getString("type_name"));
                     row.put("densityKgPerLiter", rs.getBigDecimal("density_kg_per_liter").doubleValue());
                     row.put("litersPerBucket", rs.getBigDecimal("liters_per_bucket").doubleValue());
+                    BigDecimal dup = rs.getBigDecimal("default_unit_price");
+                    row.put("defaultUnitPricePerBucket", rs.wasNull() ? null : dup.doubleValue());
                     return row;
                 });
+    }
+
+    /** 主端维护油品种类（名称、密度、参考单价元/桶、可选每桶升数）。 */
+    public Map<String, Object> createOilType(OilTypeCreateRequest req) {
+        OpenidBizScope s = scopeService.resolve(req.getOpenid());
+        if (s.getUserRole() != '1') {
+            throw new IllegalArgumentException("仅主端可新增油品类型");
+        }
+        String typeName = req.getTypeName() == null ? "" : req.getTypeName().trim();
+        if (typeName.isEmpty()) {
+            throw new IllegalArgumentException("油品名称不能为空");
+        }
+        Integer dup = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM biz_env_oil_type WHERE del_flag = '0' AND type_name = ?",
+                Integer.class,
+                typeName);
+        if (dup != null && dup > 0) {
+            throw new IllegalArgumentException("已存在同名油品");
+        }
+        BigDecimal density = req.getDensityKgPerLiter().setScale(4, RoundingMode.HALF_UP);
+        BigDecimal price = req.getUnitPricePerBucket().setScale(4, RoundingMode.HALF_UP);
+        BigDecimal lpIn = req.getLitersPerBucket();
+        final BigDecimal litersForInsert;
+        if (lpIn == null || lpIn.compareTo(BigDecimal.ZERO) <= 0) {
+            litersForInsert = new BigDecimal("200.0000");
+        } else {
+            litersForInsert = lpIn.setScale(4, RoundingMode.HALF_UP);
+        }
+        Integer sortBase =
+                jdbcTemplate.queryForObject("SELECT COALESCE(MAX(sort_order), 0) FROM biz_env_oil_type WHERE del_flag = '0'", Integer.class);
+        int sortOrder = (sortBase == null ? 0 : sortBase) + 10;
+        GeneratedKeyHolder kh = new GeneratedKeyHolder();
+        jdbcTemplate.update(
+                connection -> {
+                    PreparedStatement ps = connection.prepareStatement(
+                            "INSERT INTO biz_env_oil_type (type_name, density_kg_per_liter, liters_per_bucket, default_unit_price, "
+                                    + "sort_order, status, del_flag) VALUES (?,?,?,?,?,'0','0')",
+                            Statement.RETURN_GENERATED_KEYS);
+                    ps.setString(1, typeName);
+                    ps.setBigDecimal(2, density);
+                    ps.setBigDecimal(3, litersForInsert);
+                    ps.setBigDecimal(4, price);
+                    ps.setInt(5, sortOrder);
+                    return ps;
+                },
+                kh);
+        Number key = kh.getKey();
+        if (key == null) {
+            throw new IllegalStateException("未能获取新油品类型 ID");
+        }
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("oilTypeId", key.longValue());
+        return out;
     }
 
     /**

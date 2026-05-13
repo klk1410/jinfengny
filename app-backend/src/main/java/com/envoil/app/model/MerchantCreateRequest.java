@@ -1,6 +1,8 @@
 package com.envoil.app.model;
 
+import javax.validation.constraints.DecimalMin;
 import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Size;
 
 public class MerchantCreateRequest {
@@ -48,6 +50,12 @@ public class MerchantCreateRequest {
     private Long oilTypeId;
 
     private Double merchantCommission;
+
+    /** 押金（元），必填，须 >= 0 */
+    @NotNull(message = "请填写押金")
+    @DecimalMin(value = "0.0", inclusive = true, message = "押金须大于等于0")
+    private Double depositAmount;
+
     private Long salesmanId;
 
     /** 关联商家（同代理下已有门店，可选） */
@@ -186,6 +194,14 @@ public class MerchantCreateRequest {
 
     public void setMerchantCommission(Double merchantCommission) {
         this.merchantCommission = merchantCommission;
+    }
+
+    public Double getDepositAmount() {
+        return depositAmount;
+    }
+
+    public void setDepositAmount(Double depositAmount) {
+        this.depositAmount = depositAmount;
     }
 
     public Long getSalesmanId() {
